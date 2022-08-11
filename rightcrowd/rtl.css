@@ -1,0 +1,355 @@
+
+@import url('css/bootstrap-rtl.min.css');
+
+body{
+  direction: rtl;
+  unicode-bidi: embed;
+}
+
+/* menu */
+#mobile-menu ul li span.menu-toggler {
+  left: 0;
+  right: auto;
+}
+
+#mobile-menu ul li span.menu-toggler i.fa-angle-right:before {
+    content: "\f104";
+}
+
+.pull-right {
+    float: left!important;
+}
+
+a img.alignleft {
+    float: right;
+    margin: 5px 0 20px 20px;
+}
+
+.entry-content{
+  overflow: hidden;
+}
+/* Homepage, popular idea section*/
+#main-menu .nav {
+    text-align: left;
+}
+#popular-ideas .details .entry-meta span {
+    float: right;
+    margin: 0 !important;
+}
+
+#popular-ideas .details .entry-meta span i {
+    margin-left: 5px;
+}
+
+.entry-money {
+    padding-right: 5px;
+}
+
+/* FEATURED IDEAS */
+#featured-ideas .details .media-body .entry-meta span {
+    float: right;
+    margin-right: 0;
+    margin-left: 20px;
+}
+
+#featured-ideas .details .media-body .entry-meta {
+    margin-bottom: 60px;
+}
+
+
+.col-sm-offset-6 {
+    margin: 0;
+}
+
+.fa-user:before {
+    padding-left: 8px;
+}
+
+.fa-clock-o:before {
+    padding-left: 8px;
+}
+
+.popup-video-stype {
+/*    position: absolute;*/
+    /*right: 0;*/
+}
+
+#featured-ideas .details figure:hover figcaption p:nth-of-type(1), #featured-ideas .details figure:hover figcaption p:nth-of-type(2) {
+    right: 20px;
+    left: 0;
+}
+
+#featured-ideas .details .media-body .entry-meta span i {
+    margin-left: 5px;
+    margin-right: 0;
+}
+
+#featured-ideas .details figure:hover figcaption ul {
+    left: 20px;
+    opacity: 1;
+}
+#featured-ideas .details figcaption ul {
+    right: auto !important
+}
+
+#popular-ideas .image figure:hover figcaption p:nth-of-type(1), #popular-ideas .image figure:hover figcaption p:nth-of-type(2) {
+    right: 20px;
+}
+
+#popular-ideas .image figcaption ul {
+  right: auto !important;
+  left: 10px;
+}
+
+span.entry-rate {
+    padding-right: 10px;
+}
+
+.project-breadcrumbs .entry-meta span.entry-food {
+    padding-right: 0;
+}
+
+.project-updates .update-number {
+    margin-left: 30px;
+    margin-right: 0;
+}
+
+.project-breadcrumbs .btn-primary {
+    margin-left: 10px;
+}
+.pull-left {
+  float: right !important; 
+  margin-left: 12px;
+  margin-right: 0;
+}
+
+#popular-ideas .ideas-item .details {
+    padding: 15px 20px 30px;
+}
+
+#featured-ideas .details figure {
+  margin-right: 0;
+}
+.entry-meta ul li {
+  margin-right: 0;
+}
+
+#content article.post figure .social-button {
+    right: 0;
+}
+.quote p:after {
+    content: "\f10e";
+    font-family: fontawesome;
+    position: absolute;
+    top: -50px;
+    right: 0;
+}
+.text-left {
+    text-align: right;
+}
+.text-right {
+    text-align: left;
+}
+
+.project-category-list ul li {
+    float: right;
+    margin-left: 2.5%;
+    margin-right: 0;
+}
+.project-category-list ul li:nth-child(5n) {
+    margin-right: 0;
+    margin-left: 0;
+}
+td, .table>tbody>tr>td {
+    text-align: right;
+}
+.margin15{
+  float: left;
+}
+
+.themeum-address .details li i {
+    margin-right: 0;
+    margin-left: 15px;
+}
+
+.themeum-address .details li:last-child i {
+    float: right;
+}
+.wpcf7-form-control-wrap input[type="text"], .wpcf7-form-control-wrap input[type="email"], .wpcf7-form-control-wrap input[type="url"], .wpcf7-form-control-wrap textarea {
+    text-align: right;
+}
+
+.comment-list .comment-body .comment-avartar {
+    margin-right: 0px;
+}
+
+.media-left, .media>.pull-left {
+  padding-right: 0px; 
+}
+
+.profile-page-inner .container a.btn-useredit {
+  left: 0;
+  right: inherit;
+}
+.col-sm-offset-6{
+  width: 50%;
+  float: left;
+}
+.popup-video-stype {
+    right: 0;
+}
+.video-popup-inner {
+    padding: 100px 20px 110px 50px;
+}
+
+.owl-carousel .owl-item {
+    position: relative;
+    min-height: 1px;
+    float: right;
+}
+.owl-item{
+  margin-right: 0 !important;
+  margin-left: 30px !important;
+}
+.section-header{
+  /*animation-name: fadeInRight;*/
+}
+#project-form .input-form .glyphicon-ok:before {
+    margin-right: 0px;
+}
+
+
+
+/* responsive css */
+@media (max-width: 360px) {
+  .container{
+    width: 342px;
+  }
+  #mobile-menu ul li span.menu-toggler {
+    left: 0;
+    right: inherit;
+  }
+  .fa-angle-right:before {
+      content: "\f104";
+  }
+  #popular-ideas .image {
+      width: 342px;
+  }
+  .media-body, .media-left, .media-right {
+      width: 342px;
+  }
+  .popup-video-stype {
+      right: 0;
+      width: 342px !important;
+  }
+  .col-sm-offset-6 {
+      float: right;
+      width: 100%;
+  }
+  .wpb_single_image.vc_align_left {
+    margin-right: -100px;
+    text-align: center;
+    width: 342px;
+  }
+  .project-category-list ul li {
+      width: 45%;
+  }
+  .themeum-action-shortcode .themeum-action-center .themeum_button_shortcode {
+    width: 342px !important
+  }
+  .wpb_single_image.vc_align_left {
+      margin-left: auto;
+      margin-right: 0;
+      text-align: center;
+      width: 330px;
+  }
+}
+
+.vc_custom_1426835720020 {
+    padding-right: 0 !important;
+    padding-left: 100px !important;
+}
+.wpb_single_image.vc_align_left {
+    text-align: right;
+}
+.video-popup-btn1 {
+  margin-right: 0;
+  margin-left: 10px;
+}
+.media-left, 
+.media>.pull-left {
+    padding-left: 10px;
+    padding-right: 0;
+}
+
+/* about us */
+ .vc_custom_1427958223768 {
+    padding-right: 0 !important;
+    padding-left: 40px !important;
+}
+
+/* dashboard */
+.dashboard-sidebar ul li i {
+    margin-right: 0;
+    margin-left: 4px;
+}
+
+
+/* responsive css */
+@media (max-width: 767px) {
+    .entry-content .vc_column_container>.vc_column-inner {
+      padding-left: 15px;
+      padding-right: 15px;
+  }
+}
+
+  /* responsive css */
+@media (max-width: 320px) {
+  .container{
+    width: 300px;
+  }
+  .entry-content{
+    overflow: hidden;
+  }
+  #mobile-menu ul li span.menu-toggler {
+    left: 0;
+    right: inherit;
+  }
+  .fa-angle-right:before {
+      content: "\f104";
+  }
+  #popular-ideas .image {
+      width: 300px;
+  }
+  .media-body, .media-left, .media-right {
+      width: 300px;
+  }
+  .popup-video-stype {
+      right: 0;
+      width: 300px !important;
+  }
+  .col-sm-offset-6 {
+      float: right;
+      width: 100%;
+  }
+  .wpb_single_image.vc_align_left {
+    margin-right: -100px;
+    text-align: center;
+    width: 300px;
+  }
+  .themeum-action-shortcode .themeum-action-center {
+    width: 300px
+  }
+  .project-category-list ul li {
+      width: 45%;
+  }
+  #popular-ideas .ideas-item .details {
+      padding: 15px 20px 55px;
+  }
+  .wpb_single_image.vc_align_left {
+    margin-left: auto;
+    margin-right: 0;
+    text-align: center;
+    width: 280px;
+  }
+}

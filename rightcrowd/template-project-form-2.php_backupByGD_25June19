@@ -1,0 +1,942 @@
+<?php
+/*
+ * Template Name: Page Project Form 2
+ */
+get_header(); ?>
+
+<?php 
+$actionUrl = admin_url('admin-ajax.php');
+$siteUrl = esc_url(site_url());
+$isManager = isManager();
+global $switched;
+switch_to_blog(1);
+?>
+<div id="welcome-msg" class="modal fade">
+    <div class="modal-dialog modal-md">
+         <div class="modal-content">
+             <div class="modal-header">
+                 <i class="fa fa-close close" data-dismiss="modal" id="form-submit-close"></i>
+             </div>
+             <div class="modal-body text-center">
+                 <h3><?php _e('Thank you','themeum') ?></h3>
+                 <p><?php _e('Your Business is submitted for review.','themeum') ?></p>
+             </div>
+         </div>
+    </div> 
+</div>
+
+<div id="error-msg" class="modal fade">
+    <div class="modal-dialog modal-md">
+         <div class="modal-content">
+             <div class="modal-header">
+                 <i class="fa fa-close close" data-dismiss="modal"></i>
+             </div>
+             <div class="modal-body text-center">
+                 <h3><?php _e('Error','themeum') ?></h3>
+                 <p><?php _e('Please fill Business Name and Target.','themeum') ?></p>
+             </div>
+         </div>
+    </div> 
+</div>
+
+<!-- TEAM FIELDS TEMPLATE -->
+<script id="team_fields" type="text/template">
+	<div class='team-fields-wrapper' id='{{order_number}}'>
+	   <span class='remove-team-member' data-order='{{order_number}}' style='cursor: pointer;' >Remove</span>
+		<fieldset>
+		<div class='team-field form-group'>
+			<label>Title</label>
+			<input type="text" name="team_member_title[{{order_number}}]" id='team_member_title{{order_number}}' />
+		</div>
+		<div class='team-field form-group'>
+			<label>Name</label>
+			<input type="text" name="team_member_name[{{order_number}}]" id='team_member_name{{order_number}}'/>
+		</div>
+		<!--<div class='team-field form-group'>
+			<label>Image</label>
+			<input type="file" name="team_member_file[{{order_number}}]" id='team_member_file{{order_number}}'/>
+		</div>-->
+		<div class="team-field form-group form-upload-image">
+                                <label for="team-image{{order_number}}"><?php _e('Image','themeum') ?></label>
+                                <input type="text" name="team-image[{{order_number}}]" class="form-control team_image_url{{order_number}}" id="team-image{{order_number}}">
+                                <input type="hidden" name="team-image-id[{{order_number}}]" class="form-control team_upload_image_id{{order_number}}" id="team-image{{order_number}}">
+                                <input type="button" id="cc-image-upload-file-button" class="team-image-upload" value="Upload Image" data-url="<?php echo esc_url(get_site_url()); ?>" data-team-order="{{order_number}}" />
+                            </div>
+		<div class='team-field form-group'>
+			<label>Bio</label>
+			<input type="text" name="team_member_bio[{{order_number}}]" id='team_member_bio{{order_number}}'/>
+		</div>
+		</fieldset>
+	</div>
+</script>
+
+<!-- Bank Statement File Field Template-->
+<script id="bank_file_field" type="text/template">
+								
+                                <input type="text" name="bank-file[{{order_number}}]" class="form-control bank_file_url{{order_number}}" id="bank-file{{order_number}}">
+                                <input type="hidden" name="bank-file-id[{{order_number}}]" class="form-control bank_file_id{{order_number}}" id="bank-file-id{{order_number}}">
+                                <input type="button" id="bank-file-button" class="bank-file-upload" value="Upload File" data-url="<?php echo esc_url(get_site_url()); ?>" data-team-order="{{order_number}}" />
+
+</script>
+
+<!-- Financial Reports File Field Template-->
+<script id="financial_file_field" type="text/template">
+								
+                                <input type="text" name="financial-file[{{order_number}}]" class="form-control financial_file_url{{order_number}}" id="financial-file{{order_number}}">
+                                <input type="hidden" name="financial-file-id[{{order_number}}]" class="form-control financial_file_id{{order_number}}" id="financial-file-id{{order_number}}">
+                                <input type="button" id="financial-file-button" class="financial-file-upload" value="Upload File" data-url="<?php echo esc_url(get_site_url()); ?>" data-team-order="{{order_number}}" />
+
+</script>
+
+<!-- Extra File Field Template-->
+<script id="extra_file_field" type="text/template">						
+     <input type="text" name="extra-file[{{order_number}}]" class="form-control extra_file_url{{order_number}}" id="extra-file{{order_number}}">
+     <label>Title <br/>
+     <input type="text" width="150px" name="extra-file-title[{{order_number}}]" class="form-control extra_file_title{{order_number}}" id="extra-file-title{{order_number}}">
+     <label>
+     <input type="hidden" name="extra-file-id[{{order_number}}]" class="form-control extra_file_id{{order_number}}" id="extra-file-id{{order_number}}">
+     <input type="button" id="extra-file-button" class="extra-file-upload" value="Upload File" data-url="<?php echo esc_url(get_site_url()); ?>" data-team-order="{{order_number}}" />
+
+</script>
+
+<section id="main" class="clearfix">
+   <?php get_template_part('lib/sub-header')?>
+    <div id="content" class="site-content container" role="main">
+	
+		<?php if( (get_option( 'site_type', '' ) == 'child' && get_option( 'allow_project_creation', 'yes' ) == 'yes') 
+                	|| (get_option( 'site_type', '' ) == 'master')
+                ) { // check if site is child and have permission to create company/project ?>
+
+        <?php while ( have_posts() ): the_post(); ?>
+        
+
+        <!-- start project form -->
+        <section id="project-form">
+            <div class="container">
+                <div class="row">
+                <?php if( get_current_user_id()!= 0 ): ?>
+                               
+                    <div class="clearfix"></div>
+                    <!-- form progressbar -->
+                    <div id="progressbar" class="col-sm-12">
+                       <!--  step 01 -->
+                        <div class="step-01 active wow fadeIn">
+                            <p class="step-name text-center pull-left">
+                                <i class="fa fa-edit"></i>
+                                <?php _e('Business Info','themeum'); ?>
+                            </p>
+                            <ul class="list-unstyled list-inline">
+                                <li></li>
+                                <li></li>
+                            </ul>
+                        </div>
+
+                        <!-- step 02 -->
+                        <div class="step-01 wow fadeIn" data-wow-delay=".1s">
+                            <p class="step-name text-center pull-left">
+                                <i class="fa fa-file-text-o"></i>
+                                <?php _e('Business Story','themeum'); ?>
+                            </p>
+                            <ul class="list-unstyled list-inline">
+                                <li></li>
+                                <li></li>
+                            </ul>
+                        </div>
+
+                        <!-- step 03 -->
+                        <div class="step-01 wow fadeIn" data-wow-delay=".2s">
+                            <p class="step-name text-center pull-left">
+                                <i class="fa fa-user"></i>
+                                <?php _e('Due Diligence','themeum'); ?>
+                            </p>
+                            <ul class="list-unstyled list-inline">
+                                <li></li>
+                                <li></li>
+                            </ul>
+                        </div>
+
+                        <!-- step final -->
+                        <div class="final-step wow fadeIn" data-wow-delay=".4s">
+                            <p class="step-name text-center">
+                                <i class="fa fa-check"></i>
+                                <?php _e('Publish','themeum'); ?>
+                            </p>
+                        </div>
+                    </div> <!-- end progressbar -->
+
+                    <!-- input form -->
+                    <div class="col-sm-8 input-form">
+                       
+								<?php if((isset($_GET['action']) && $_GET['action'] == 'edit') && (isset($_GET['postid']) && $_GET['postid'] != 0) ) { 
+									$postID = $_GET["postid"];
+									$project = get_post($postID);
+									if($project->post_author == get_current_user_id() || $isManager) {
+										$allMetas = get_post_meta($postID);
+										/*echo "<pre>";
+										print_r($allMetas);
+										echo "</pre>";*/
+								?>	
+				                  <form name="project-submit-form" action="<?php echo esc_url($actionUrl) ?>" method="post" class="wow fadeIn" id="project-submit-form" enctype="multipart/form-data">
+				                  
+				                  <div class="project-submit-form form-show wow fadeIn" data-wow-delay=".2s">
+
+				                      <div class="form-group has-feedback">
+				                          <label for="project-title"><?php _e('Full Business Name','themeum') ?></label>
+				                          <input type="hidden" name="new-project" id="new-project" value="new">
+				                          <input type="hidden" name="action" value="new_project_add">
+				                          <input type="hidden" name="url_red" id="redirect_url_add" value="<?php echo $siteUrl ?>">
+				                          <input type="text" name="project-title" class="form-control" placeholder="Full Business Name" id="project-title" value="<?php echo $project->post_title ?>" />
+				                          <span class="glyphicon glyphicon-ok form-control-feedback title-color"></span>
+				                      </div>
+
+				                      <div class="form-group has-feedback">
+				                          <label for="brandname"><?php _e('Brand Name','themeum') ?></label>
+				                          <input type="text" name="brandname" class="form-control" id="brandname" value="<?php echo $allMetas['thm_brandname'][0] ?>">
+				                          <span class="glyphicon glyphicon-ok form-control-feedback brandname-color"></span>
+				                      </div>
+
+				                      <div class="form-group has-feedback">
+				                          <label for="location"><?php _e('Location','themeum') ?></label>
+				                          <input type="text" name="location" class="form-control" id="location" value="<?php echo $allMetas['thm_location'][0] ?>">
+				                          <span class="glyphicon glyphicon-ok form-control-feedback location-color"></span>
+				                      </div>
+
+				                      <div class="form-group has-feedback">
+				                          <label for="incorpdate"><?php _e('Incorporation Date','themeum') ?></label>
+				                          <input type="text" name="incorpdate" class="form-control datepicker" id="incorpdate" value="<?php echo $allMetas['thm_incorpdate'][0] ?>">
+				                          <span class="glyphicon glyphicon-ok form-control-feedback incorpdate-color"></span>
+				                      </div>
+
+				                      <div class="form-group has-feedback">
+				                          <label for="coregno"><?php _e('Company Reg Number','themeum') ?></label>
+				                          <input type="text" name="coregno" class="form-control" id="coregno" value="<?php echo $allMetas['thm_coregno'][0] ?>">
+				                          <span class="glyphicon glyphicon-ok form-control-feedback coregno-color"></span>
+				                      </div>
+									  
+									  <div class="form-group has-feedback">
+				                          <label for="website"><?php _e('Company Website','themeum') ?></label>
+				                          <input type="text" name="website_url" class="form-control" id="website" value="<?php echo $allMetas['thm_website_url'][0] ?>">
+				                          <span class="glyphicon glyphicon-ok form-control-feedback coregno-color"></span>
+				                      </div>
+
+				                      <div class="form-group has-feedback form-upload-image">
+				                          <label for="project-image"><?php _e('Image/Logo','themeum') ?></label>
+				                          <input type="text" name="project-image" class="form-control upload_image_url" id="project-image">
+				                          <input type="hidden" name="project-image-id" class="form-control upload_image_id" id="project-image">
+				                          <input type="button" id="cc-image-upload-file-button" class="custom-upload image-upload" value="Upload Image" data-url="<?php echo esc_url(get_site_url()); ?>" />
+				                      </div>
+
+				                      <div class="form-group has-feedback form-upload-image">
+				                          <label for="banner-image"><?php _e('Banner Image','themeum') ?></label>
+				                          <input type="text" name="banner-image" class="form-control banner_image_url" id="banner-image">
+				                          <input type="hidden" name="banner-image-id" class="form-control banner_image_id" id="banner-image">
+				                          <input type="button" id="cc-image-upload-file-button" class="banner-upload image-upload" value="Upload Image" data-url="<?php echo esc_url(get_site_url()); ?>" />
+				                      </div>
+											<?php 
+											$cat_terms = wp_get_object_terms($postID, 'project_category', array());
+											?>
+				                      <div class="form-group has-feedback">
+				                          <label for="project-category"><?php _e('Business Sector (Primary)','themeum') ?></label>
+				                          <select name="project-category" id="project-category">
+				                              <?php 
+				                              $all_cat = get_terms('project_category', array(
+				                                  'hide_empty' => false,
+				                              )); 
+				                              foreach ($all_cat as $value) {
+				                                  echo '<option value="'.$value->slug.'" '.($cat_terms[0]->slug == $value->slug ? "selected" : "") .' >'.$value->name.'</option>';
+				                              }
+				                              ?>
+				                          </select>
+				                      </div>
+				                      <div class="form-group">
+				                          <label for="project-category"><?php _e('Business Sector (Secondary)','themeum') ?></label>
+				                          <select name="project-category-2" id="project-category-2">
+				                              <option value="">N/A</option>
+				                              <?php 
+				                              $all_cat = get_terms('project_category', array(
+				                                  'hide_empty' => false,
+				                              )); 
+				                              foreach ($all_cat as $value) {
+				                                  echo '<option value="'.$value->slug.'"'.(isset($cat_terms[1]) && $cat_terms[1]->slug == $value->slug ? "selected" : "").'>'.$value->name.'</option>';
+				                              }
+				                              ?>
+				                          </select>
+				                      </div>
+				                      <div class="form-group">
+				                          <label for="project-category"><?php _e('Business Sector (Tertiary)','themeum') ?></label>
+				                          <select name="project-category-3" id="project-category-3">
+				                              <option value="">N/A</option>
+				                              <?php 
+				                              $all_cat = get_terms('project_category', array(
+				                                  'hide_empty' => false,
+				                              ));
+				                              foreach ($all_cat as $value) {
+				                                  echo '<option value="'.$value->slug.'"'.(isset($cat_terms[2]) && $cat_terms[2]->slug == $value->slug ? "selected" : "").'>'.$value->name.'</option>';
+				                              }
+				                              ?>
+				                          </select>
+				                      </div>
+
+											 <div class="form-group has-feedback">
+				                          <label for="investment-type"><?php _e('Investment Type','themeum') ?></label>
+				                          <select name="investment-type" id="investment-type">
+				                              <option value="equity" <?php echo $allMetas['thm_investment_type'][0] == 'equity' ? 'selected' : '' ?> >Equity</option>
+				                              <option value="bond" <?php echo $allMetas['thm_investment_type'][0] == 'bond' ? 'selected' : '' ?> >Bond</option>
+											  <option value="loan" <?php echo $allMetas['thm_investment_type'][0] == 'loan' ? 'selected' : '' ?> >Loan Notes</option>
+				                          </select>
+				                      </div>
+				                      
+				                      <!--<div class="form-group project-duration">
+				                          <label for="duration"><?php _e('Funding Duration','themeum') ?></label>
+				                          <select name="duration" id="duration">
+				                              <option value="30" <?php echo $allMetas['thm_duration'][0] == '30' ? 'selected' : '' ?> >30 Days</option>
+				                              <option value="60" <?php echo $allMetas['thm_duration'][0] == '60' ? 'selected' : '' ?> >60 Days</option>
+				                              <option value="90" <?php echo $allMetas['thm_duration'][0] == '90' ? 'selected' : '' ?> >90 Days</option>
+				                          </select>
+				                      </div>-->
+											 <div class="form-group" id="marketing_allowance_field">
+					                       <label for="marketing_allowance"><?php _e('Marketing Allowance %','themeum') ?></label>
+					                       <div class="input-group currency-change">
+					                           <input type="text" name="marketing_allowance" id="marketing_allowance" value="<?php echo $allMetas['thm_marketing'][0] ?>" class="form-control" >
+					                           <div class="input-group-addon fund-goal">
+					                               <span>%</span>
+					                           </div>
+					                       </div>
+					                   </div>
+					                   <div class="form-group" id="coupon_field">
+					                       <label for="coupon"><?php _e('Coupon %','themeum') ?></label>
+					                       <div class="input-group currency-change">
+					                           <input type="text" name="coupon" id="coupon" value="<?php echo $allMetas['thm_coupon'][0] ?>" class="form-control" >
+					                           <div class="input-group-addon fund-goal">
+					                               <span>%</span>
+					                           </div>
+					                       </div>
+					                   </div>
+					                   <div class="form-group" id="bond_expiry_field">
+					                       <label for="bond_expiry"><?php _e('Expiry Date','themeum') ?></label>
+					                       <div class="input-group currency-change"> 
+					                           <input type="date" name="bond_expiry" id="bond_expiry" value="<?php echo $allMetas['thm_bond_expiry'][0] ?>" class="form-control" >
+					                       </div>
+					                   </div>
+					                   
+					                   <div class="form-group has-feedback">
+				                          <label for="private-listing"><?php _e('Private Listing','themeum') ?></label>
+				                          <select name="private-listing" id="private-listing">
+				                              <option value="yes" <?php echo $allMetas['thm_private_listing'][0] == 'yes' ? 'selected' : '' ?>>Yes</option>
+				                              <option value="no" <?php echo $allMetas['thm_private_listing'][0] == 'no' ? 'selected' : '' ?>>No</option>
+				                          </select>
+										  <em style="font-size:12px;">Private listings will only be shown on this site. We recommend setting this to "No" enabling it to display across our network</em>
+				                      </div>
+					                   
+				                      <div class="form-group">
+				                          <label for="duration"><?php _e('Investment Target','themeum') ?></label>
+				                          <div class="input-group currency-change">
+				                              <input type="text" name="investment-amount" id="investment-amount" class="form-control" value="<?php echo $allMetas['thm_funding_goal'][0] ?>">
+				                              <div class="input-group-addon fund-goal">
+				                                  <span><?php echo  themeum_get_currency_code(); ?></span>
+				                              </div>
+				                          </div>
+				                      </div>
+				                      <div class="form-group has-feedback">
+				                          <label for="equityoffer"><?php _e('Equity offered (%)','themeum') ?></label>
+				                          <input type="text" name="equityoffer" class="form-control" id="equityoffer" value="<?php echo $allMetas['thm_equityoffer'][0] ?>">
+				                          <span class="glyphicon glyphicon-ok form-control-feedback equityoffer-color"></span>
+				                      </div>
+				                      
+				                      <input type="hidden" name="min1" value="50" />
+
+				                   
+				                  </div>
+
+				                  <div class="project-submit-form form-hide wow fadeIn" data-wow-delay=".2s">
+
+				                      <div class="form-group has-feedback">
+				                          <label for="project-video"><?php _e('Video URL','themeum') ?></label>
+				                          <input type="text" name="video-url" class="form-control" placeholder="YouTube or Vimeo URL" id="project-video" value="<?php echo $allMetas['thm_video_url'][0] ?>">
+				                          <span class="glyphicon glyphicon-ok form-control-feedback video-color"></span>
+				                      </div>
+											 <div class="form-group has-feedback">
+				                          <label for="project-about"><?php _e('About the Project Creator','themeum') ?></label>
+				                          <textarea id="project-about" name="about"><?php echo $allMetas['thm_about'][0] ?></textarea>
+				                          <span class="glyphicon glyphicon-ok form-control-feedback about-color"></span>
+				                      </div>
+				                      <div class="form-group">
+				                          <label><?php _e('Business Description','themeum') ?></label>
+				                          <div>
+				                              <?php
+				                              $editor_id = 'description';
+				                              $content = $project->post_content;
+				                              wp_editor( $content, $editor_id );
+				                              ?>   
+				                          </div>
+				                      </div>
+												
+											<div class="form-group">
+				                          <label><?php _e('Idea','themeum') ?></label>
+				                          <div>
+				                              <?php
+				                              $editor_id = 'business_idea';
+				                              $content = $allMetas['thm_business_idea'][0];
+				                              wp_editor( $content, $editor_id );
+				                              ?>   
+				                          </div>
+				                      </div>
+				                     
+				                     <div class="form-group">
+				                          <label><?php _e('Market','themeum') ?></label>
+				                          <div>
+				                              <?php
+				                              $editor_id = 'business_market';
+				                              $content = $allMetas['thm_business_market'][0];
+				                              wp_editor( $content, $editor_id );
+				                              ?>   
+				                          </div>
+				                      </div>
+
+											<!-- TEAM FIELDS  -->
+											<div class="form-group" id="team_section">
+				                          <label><?php _e('Team','themeum') ?></label>
+				                          <div id="team_fields_section"></div>
+				                          <a href="javascript:void(0)" id="add_team_fields">Add Member</a> 
+				                      </div>
+				                  </div>
+
+				                  <div class="project-submit-form form-hide wow fadeIn" data-wow-delay=".2s">
+												<!-- Step 3 -->
+				                      <div class="team-field form-group form-upload-image">
+				                          <label for="team-image"><?php _e('Certificate of Incorporation','themeum') ?></label>
+				                          <input type="text" name="cert-inc" class="form-control cert_inc_url" id="cert-inc">
+				                          <input type="hidden" name="cert-inc-id" class="form-control cert_inc_id" id="cert-inc-id">
+				                          <input type="button" id="cert-inc-upload-file-button" class="cert-inc-upload" value="Upload File" data-url="<?php echo esc_url(get_site_url()); ?>" />
+				                      </div>
+				                      
+				                      <div class="team-field form-group form-upload-image">
+				                          <label for="team-image"><?php _e('Articles of Association','themeum') ?></label>
+				                          <input type="text" name="article-inc" class="form-control article_inc_url" id="article-inc">
+				                          <input type="hidden" name="article-inc-id" class="form-control article_inc_id" id="article-inc-id">
+				                          <input type="button" id="article-inc-upload-file-button" class="article-inc-upload" value="Upload File" data-url="<?php echo esc_url(get_site_url()); ?>" />
+				                      </div>
+				                      
+				                      <div class="team-field form-group form-upload-image">
+				                          <label for="team-image"><?php _e('Memorandum of Association','themeum') ?></label>
+				                          <input type="text" name="memorandum" class="form-control memorandum_url" id="memorandum">
+				                          <input type="hidden" name="memorandum-id" class="form-control memorandum_id" id="memorandum-id">
+				                          <input type="button" id="memorandum-upload-file-button" class="memorandum-upload" value="Upload File" data-url="<?php echo esc_url(get_site_url()); ?>" />
+				                      </div>
+				                      
+				                      <hr/>
+				                      <div class="form-group" id="bank_file_section">
+				                          <label><?php _e('Bank Statements (last 3 months)','themeum') ?></label>
+				                          <div id="bank_files_section"></div>
+				                          <a href="javascript:void(0)" id="add_bank_file">Add More</a> 
+				                      </div>
+				                      
+											 <hr/>
+											 
+											 <div class="form-group" id="financial_file_section">
+				                          <label><?php _e('Financial Reports (last 3 years)','themeum') ?></label>
+				                          <div id="financial_files_section"></div>
+				                          <a href="javascript:void(0)" id="add_financial_file">Add More</a> 
+				                      </div>	
+				                      <div class="form-group" id="extra_file_section">
+				                          <label><?php _e('Extra Files','themeum') ?></label>
+				                          <div id="extra_files_section"></div>
+				                          <a href="javascript:void(0)" id="add_extra_file">Add More</a> 
+				                      </div>
+				                  </div>
+											 <input id="form_step" type="hidden" name="form_step" value="<?php echo isset($allMetas['form_step']) ? $allMetas['form_step'][0] : 0 ?>" />	
+											 <input id="postID" type="hidden" name="postID" value='<?php echo $_GET["postid"] ?>' />
+				                      <button id="back" class="btn btn-primary pull-left" type="button"><?php _e('Back','themeum') ?></button>
+				                      <button id="next" class="btn btn-primary pull-right" type="button"><?php _e('Save and continue','themeum') ?></button>
+				                      <button id="project-submit" class="btn btn-primary pull-right" type="submit"><?php _e('Submit Business','themeum') ?></button>
+
+				                  </form>
+										<?php }else{ ?>
+											<div><p>You don't have permission to perform this action.</p></div>
+										<?php } ?>
+								<?php }else{ // end of edit form ?>
+								
+								
+								<!-- new business form -->
+								<form name="project-submit-form" action="<?php echo esc_url($actionUrl) ?>" method="post" class="wow fadeIn" id="project-submit-form" enctype="multipart/form-data">
+                        
+                        <div class="project-submit-form form-show wow fadeIn" data-wow-delay=".2s">
+
+                            <div class="form-group has-feedback">
+                                <label for="project-title"><?php _e('Full Business Name','themeum') ?></label>
+                                <input type="hidden" name="new-project" id="new-project" value="new">
+                                <input type="hidden" name="action" value="new_project_add">
+                                <input type="hidden" name="url_red" id="redirect_url_add" value="<?php echo $siteUrl; ?>">
+                                <input type="text" name="project-title" class="form-control" placeholder="Full Business Name" id="project-title">
+                                <span class="glyphicon glyphicon-ok form-control-feedback title-color"></span>
+                            </div>
+
+                            <div class="form-group has-feedback">
+                                <label for="brandname"><?php _e('Brand Name','themeum') ?></label>
+                                <input type="text" name="brandname" class="form-control" id="brandname" value="">
+                                <span class="glyphicon glyphicon-ok form-control-feedback brandname-color"></span>
+                            </div>
+
+                            <div class="form-group has-feedback">
+                                <label for="location"><?php _e('Location','themeum') ?></label>
+                                <input type="text" name="location" class="form-control" id="location" value="">
+                                <span class="glyphicon glyphicon-ok form-control-feedback location-color"></span>
+                            </div>
+
+                            <div class="form-group has-feedback">
+                                <label for="incorpdate"><?php _e('Incorporation Date','themeum') ?></label>
+                                <input type="text" name="incorpdate" class="form-control datepicker" id="incorpdate" value="01/01/2018">
+                                <span class="glyphicon glyphicon-ok form-control-feedback incorpdate-color"></span>
+                            </div>
+
+                            <div class="form-group has-feedback">
+                                <label for="coregno"><?php _e('Company Reg Number','themeum') ?></label>
+                                <input type="text" name="coregno" class="form-control" id="coregno">
+                                <span class="glyphicon glyphicon-ok form-control-feedback coregno-color"></span>
+                            </div>
+							
+							<div class="form-group has-feedback">
+							  <label for="website"><?php _e('Company Website','themeum') ?></label>
+							  <input type="text" name="website_url" class="form-control" id="website" >
+							  <span class="glyphicon glyphicon-ok form-control-feedback coregno-color"></span>
+						    </div>
+
+                            <div class="form-group has-feedback form-upload-image">
+                                <label for="project-image"><?php _e('Image/Logo','themeum') ?></label>
+                                <input type="text" name="project-image" class="form-control upload_image_url" id="project-image">
+                                <input type="hidden" name="project-image-id" class="form-control upload_image_id" id="project-image">
+                                <input type="button" id="cc-image-upload-file-button" class="custom-upload image-upload" value="Upload Image" data-url="<?php echo esc_url(get_site_url()); ?>" />
+                            </div>
+
+                            <div class="form-group has-feedback form-upload-image">
+                                <label for="banner-image"><?php _e('Banner Image','themeum') ?></label>
+                                <input type="text" name="banner-image" class="form-control banner_image_url" id="banner-image">
+                                <input type="hidden" name="banner-image-id" class="form-control banner_image_id" id="banner-image">
+                                <input type="button" id="cc-image-upload-file-button" class="banner-upload image-upload" value="Upload Image" data-url="<?php echo esc_url(get_site_url()); ?>" />
+                            </div>
+
+                            <div class="form-group has-feedback">
+                                <label for="project-category"><?php _e('Business Sector (Primary)','themeum') ?></label>
+                                <select name="project-category" id="project-category">
+                                    <?php 
+                                    $all_cat = get_terms('project_category', array(
+                                        'hide_empty' => false,
+                                    )); print_r($all_cat);
+                                    foreach ($all_cat as $value) {
+                                        echo '<option value="'.$value->slug.'">'.$value->name.'</option>';
+                                    }
+                                    ?>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="project-category"><?php _e('Business Sector (Secondary)','themeum') ?></label>
+                                <select name="project-category-2" id="project-category-2">
+                                    <option value="">N/A</option>
+                                    <?php 
+                                    $all_cat = get_terms('project_category', array(
+                                        'hide_empty' => false,
+                                    )); 
+                                    foreach ($all_cat as $value) {
+                                        echo '<option value="'.$value->slug.'">'.$value->name.'</option>';
+                                    }
+                                    ?>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="project-category"><?php _e('Business Sector (Tertiary)','themeum') ?></label>
+                                <select name="project-category-3" id="project-category-3">
+                                    <option value="">N/A</option>
+                                    <?php 
+                                    $all_cat = get_terms('project_category', array(
+                                        'hide_empty' => false,
+                                    ));
+                                    foreach ($all_cat as $value) {
+                                        echo '<option value="'.$value->slug.'">'.$value->name.'</option>';
+                                    }
+                                    ?>
+                                </select>
+                            </div>
+
+                            <!--<div class="form-group has-feedback">
+                                <label for="project-tag"><?php _e('Project Tag','themeum') ?></label>
+                                <input type="text" name="project-tag" class="form-control" placeholder="ex: food, arts" id="project-tag">
+                                <span class="glyphicon glyphicon-ok form-control-feedback tag-color"></span>
+                            </div>-->
+
+                            <div class="form-group has-feedback">
+                                <label for="investment-type"><?php _e('Investment Type','themeum') ?></label>
+                                <select name="investment-type" id="investment-type">
+                                    <option value="equity">Equity</option>
+                                    <option value="bond">Bond</option>
+									<option value="loan">Loan Notes</option>
+                                </select>
+                            </div>
+
+                            <!--<div class="form-group project-duration">
+                                <label for="duration"><?php _e('Funding Duration','themeum') ?></label>
+                                <select name="duration" id="duration">
+                                    <option value="30">30 Days</option>
+                                    <option value="60">60 Days</option>
+                                    <option value="90">90 Days</option>
+                                </select>
+                            </div>-->
+                            
+                            <div class="form-group" id="marketing_allowance_field">
+                                <label for="marketing_allowance"><?php _e('Marketing Allowance %','themeum') ?></label>
+                                <div class="input-group currency-change">
+                                    <input type="text" name="marketing_allowance" id="marketing_allowance" class="form-control" >
+                                    <div class="input-group-addon fund-goal">
+                                        <span>%</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="form-group" id="coupon_field">
+                                <label for="coupon"><?php _e('Coupon %','themeum') ?></label>
+                                <div class="input-group currency-change">
+                                    <input type="text" name="coupon" id="coupon" class="form-control" >
+                                    <div class="input-group-addon fund-goal">
+                                        <span>%</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="form-group" id="bond_expiry_field">
+                                <label for="bond_expiry"><?php _e('Expiry Date','themeum') ?></label>
+                                <div class="input-group currency-change">
+                                    <input type="date" name="bond_expiry" id="bond_expiry" class="form-control" >
+                                </div>
+                            </div>
+							
+                            <div class="form-group has-feedback">
+                                <label for="private-listing"><?php _e('Private Listing','themeum') ?></label>
+                                <select name="private-listing" id="private-listing">
+                                    <option value="yes">Yes</option>
+                                    <option value="no" selected>No</option>
+                                </select>
+								<em style="font-size:12px;">Private listings will only be shown on this site. We recommend setting this to "No" enabling it to display across our network</em>
+                            </div>
+                            <div class="form-group">
+                                <label for="duration"><?php _e('Investment Target','themeum') ?></label>
+                                <div class="input-group currency-change">
+                                    <input type="text" name="investment-amount" id="investment-amount" class="form-control" >
+                                    <div class="input-group-addon fund-goal">
+                                        <span><?php echo  themeum_get_currency_code(); ?></span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="form-group has-feedback" id="equity_offered_field">
+                                <label for="equityoffer"><?php _e('Equity offered (%)','themeum') ?></label>
+                                <input type="text" name="equityoffer" class="form-control" id="equityoffer">
+                                <span class="glyphicon glyphicon-ok form-control-feedback equityoffer-color"></span>
+                            </div>
+                            
+							
+                            <!--<input type="checkbox" name="terms_conditions" required id="terms-conditions-field">
+							<label for="terms-conditions-field">I accept the <a href=""><u>Terms and Conditions</u></a></label>-->
+                            
+							
+                             <!--<div class="form-group">
+                                <label><?php _e('Reward','themeum'); ?></label>
+                                <div id="clone-form">   
+                                    <div class="auto-field">
+                                        <label><?php _e('Range:','themeum'); ?></label>
+                                        <input type="text" name="min1" placeholder="<?php _e('Minimum','themeum'); ?>" class="form-control min" ><i class="spce fa fa-minus"></i>
+                                        <input type="text" name="max1" placeholder="<?php _e('Maximum','themeum'); ?>" class="form-control max" >
+                                        <label class="reward-level"><?php _e('Reward1','themeum') ?></label>
+                                        <textarea name="reward1" class="form-control"></textarea><hr/>
+                                    </div>
+                                </div>
+                                <span id="add-more"><?php _e('Add More','themeum'); ?></span>
+                            </div>-->
+                            <input type="hidden" name="min1" value="50" />
+
+                         
+                        </div>
+
+                        <div class="project-submit-form form-hide wow fadeIn" data-wow-delay=".2s">
+
+                            <div class="form-group has-feedback">
+                                <label for="project-video"><?php _e('Video URL','themeum') ?></label>
+                                <input type="text" name="video-url" class="form-control" placeholder="YouTube or Vimeo URL" id="project-video">
+                                <span class="glyphicon glyphicon-ok form-control-feedback video-color"></span>
+                            </div>
+									 <div class="form-group has-feedback">
+                                <label for="project-about"><?php _e('About the Project Creator','themeum') ?></label>
+                                <textarea id="project-about" name="about"></textarea>
+                                <span class="glyphicon glyphicon-ok form-control-feedback about-color"></span>
+                            </div>
+                            <div class="form-group">
+                                <label><?php _e('Business Description','themeum') ?></label>
+                                <div>
+                                    <?php
+                                    $editor_id = 'description';
+                                    $content = '';
+                                    wp_editor( $content, $editor_id );
+                                    ?>   
+                                </div>
+                            </div>
+										
+									<div class="form-group">
+                                <label><?php _e('Idea','themeum') ?></label>
+                                <div>
+                                    <?php
+                                    $editor_id = 'business_idea';
+                                    $content = '';
+                                    wp_editor( $content, $editor_id );
+                                    ?>   
+                                </div>
+                            </div>
+                           
+                           <div class="form-group">
+                                <label><?php _e('Market','themeum') ?></label>
+                                <div>
+                                    <?php
+                                    $editor_id = 'business_market';
+                                    $content = '';
+                                    wp_editor( $content, $editor_id );
+                                    ?>   
+                                </div>
+                            </div>
+
+									<!-- TEAM FIELDS  -->
+									<div class="form-group" id="team_section">
+                                <label><?php _e('Team','themeum') ?></label>
+                                <div id="team_fields_section"></div>
+                                <a href="javascript:void(0)" id="add_team_fields">Add Member</a> 
+                            </div>
+                        </div>
+
+                        <div class="project-submit-form form-hide wow fadeIn" data-wow-delay=".2s">
+										<!-- Step 3 -->
+                            <div class="team-field form-group form-upload-image">
+                                <label for="team-image"><?php _e('Certificate of Incorporation','themeum') ?></label>
+                                <input type="text" name="cert-inc" class="form-control cert_inc_url" id="cert-inc">
+                                <input type="hidden" name="cert-inc-id" class="form-control cert_inc_id" id="cert-inc-id">
+                                <input type="button" id="cert-inc-upload-file-button" class="cert-inc-upload" value="Upload File" data-url="<?php echo esc_url(get_site_url()); ?>" />
+                            </div>
+                            
+                            <div class="team-field form-group form-upload-image">
+                                <label for="team-image"><?php _e('Articles of Association','themeum') ?></label>
+                                <input type="text" name="article-inc" class="form-control article_inc_url" id="article-inc">
+                                <input type="hidden" name="article-inc-id" class="form-control article_inc_id" id="article-inc-id">
+                                <input type="button" id="article-inc-upload-file-button" class="article-inc-upload" value="Upload File" data-url="<?php echo esc_url(get_site_url()); ?>" />
+                            </div>
+                            
+                            <div class="team-field form-group form-upload-image">
+                                <label for="team-image"><?php _e('Memorandum of Association','themeum') ?></label>
+                                <input type="text" name="memorandum" class="form-control memorandum_url" id="memorandum">
+                                <input type="hidden" name="memorandum-id" class="form-control memorandum_id" id="memorandum-id">
+                                <input type="button" id="memorandum-upload-file-button" class="memorandum-upload" value="Upload File" data-url="<?php echo esc_url(get_site_url()); ?>" />
+                            </div>
+                            
+                            <hr/>
+                            <div class="form-group" id="bank_file_section">
+                                <label><?php _e('Bank Statements (last 3 months)','themeum') ?></label>
+                                <div id="bank_files_section"></div>
+                                <a href="javascript:void(0)" id="add_bank_file">Add More</a> 
+                            </div>
+                            
+									 <hr/>
+									 
+									 <div class="form-group" id="financial_file_section">
+                                <label><?php _e('Financial Reports (last 3 years)','themeum') ?></label>
+                                <div id="financial_files_section"></div>
+                                <a href="javascript:void(0)" id="add_financial_file">Add More</a> 
+                            </div>
+                            
+                            <div class="form-group" id="extra_file_section">
+                                <label><?php _e('Extra Files','themeum') ?></label>
+                                <div id="extra_files_section"></div>
+                                <a href="javascript:void(0)" id="add_extra_file">Add More</a> 
+                            </div>	
+                        </div>
+									 <input id="form_step" type="hidden" name="form_step" value='0' />	
+									 <input id="postID" type="hidden" name="postID" value='' />
+                            <button id="back" class="btn btn-primary pull-left" type="button"><?php _e('Back','themeum') ?></button>
+                            <button id="next" class="btn btn-primary pull-right" type="button"><?php _e('Save and continue','themeum') ?></button>
+                            <button id="project-submit" class="btn btn-primary pull-right" type="submit"><?php _e('Submit Business','themeum') ?></button>
+
+                        </form>
+								
+								<?php } // end of business new form ?>
+								
+								
+								
+                    </div> <!-- end input form -->
+
+                    <!-- startup sample -->
+                    <?php if(isset($_GET['postid'])) { ?>
+                    		
+		                 <div id="popular-ideas" class="col-sm-4">
+		                     <div class="ideas-item wow fadeIn">
+		                         <div class="image">
+		                             <figure>
+		                                 <img src="<?php echo getProjectImageThumbSrc($_GET['postid']) ?>" class="img-responsive image-view" alt="">
+		                                 <!--<figcaption>
+		                                     <p>0%</p>
+		                                     <p class="pull-left"><?php _e('Raised','themeum'); ?></p>
+		                                    /*<ul class="list-unstyled list-inline rating">
+		                                         <li><i class="fa fa-star"></i></li>
+		                                         <li><i class="fa fa-star"></i></li>
+		                                         <li><i class="fa fa-star"></i></li>
+		                                         <li><i class="fa fa-star"></i></li>
+		                                         <li><i class="fa fa-star"></i></li>
+		                                     </ul> */
+		                                 </figcaption> -->
+		                             </figure>
+		                         </div> <!-- end image -->
+
+		                         <div class="clearfix"></div>
+
+		                         <div class="details">
+		                             <div class="country-name" id="auto-location"><?php echo $allMetas['thm_location'][0] ?></div>
+		                             <h4 id="auto-title"><?php echo $project->post_title ?></h4>
+		                             <div class="entry-meta">
+		                                 <i class="fa fa-tags"></i> <span class="entry-food" id="auto-tag" ><?php echo isset($cat_terms[0]) ? $cat_terms[0]->name : 'No Category' ?></span>
+		                                 <span class="entry-money"><i class="fa fa-money"></i> <?php _e('Total investment:','themeum'); ?> <strong id="auto-investment"><?php echo themeum_get_currency_symbol(); ?><?php echo $allMetas['thm_funding_goal'][0] ?></strong></span>
+		                             </div>
+		                             <div class="info" id="auto-description">
+		                                 <p>
+		                                    <?php echo $project->post_content ?> 
+		                                 </p>
+		                             </div>
+		                         </div> 
+		                     </div>
+		                 </div> <!-- end startup sample -->
+                    <?php }else{ ?>
+                    		                    <div id="popular-ideas" class="col-sm-4">
+                        <div class="ideas-item wow fadeIn">
+                            <div class="image">
+                                <figure>
+                                    <img src="<?php echo  get_template_directory_uri(); ?>/images/preview.jpg" class="img-responsive image-view" alt="">
+                                    <figcaption>
+                                        <p>0%</p>
+                                        <p class="pull-left"><?php _e('Raised','themeum'); ?></p>
+                                       <!-- <ul class="list-unstyled list-inline rating">
+                                            <li><i class="fa fa-star"></i></li>
+                                            <li><i class="fa fa-star"></i></li>
+                                            <li><i class="fa fa-star"></i></li>
+                                            <li><i class="fa fa-star"></i></li>
+                                            <li><i class="fa fa-star"></i></li>
+                                        </ul>-->
+                                    </figcaption>
+                                </figure>
+                            </div> <!-- end image -->
+
+                            <div class="clearfix"></div>
+
+                            <div class="details">
+                                <div class="country-name" id="auto-location"><?php _e('Location','themeum'); ?></div>
+                                <h4 id="auto-title"><?php _e('Sample Title','themeum'); ?></h4>
+                                <div class="entry-meta">
+                                    <i class="fa fa-tags"></i> <span class="entry-food" id="auto-tag" > <?php _e('Finance','themeum'); ?></span>
+                                    <span class="entry-money"><i class="fa fa-money"></i> <?php _e('Total investment:','themeum'); ?> <strong id="auto-investment"><?php echo themeum_get_currency_symbol(); ?>9800</strong></span>
+                                </div>
+                                <div class="info" id="auto-description">
+                                    <p>
+                                        <?php _e('Lorem ipsum dolor sit amet, consectetur adipisicing elit. Accusantium, repudiandae nisi in ea eaque ut dolorem obcaecati sit error quo facilis, officiis officia. Dignissimos fugiat, voluptatem, ipsa adipisci neque modi.','themeum'); ?>
+                                    </p>
+                                    <p>
+                                        <?php _e('Lorem ipsum dolor sit amet, consectetur adipisicing elit. Accusantium, repudiandae nisi in ea eaque ut dolorem obcaecati sit error quo facilis, officiis officia. Dignissimos fugiat, voluptatem, ipsa adipisci neque modi.','themeum'); ?>
+                                    </p>
+                                </div>
+                            </div> 
+                        </div>
+                    </div> <!-- end startup sample -->
+                    <?php } ?>
+                <?php else: ?>
+                    <div class="col-sm-4 col-sm-offset-4 text-center">
+                        <div class="alert alert-danger text-center" role="alert"><?php _e('Login to add a business','themeum') ?></div>
+                    </div>
+                    <?php
+                        if ( shortcode_exists( 'custom_login' ) ) {
+                          echo do_shortcode( '[custom_login]' );
+                        }
+                    ?>
+                <?php endif; ?>
+                </div>
+            </div>
+        </section>
+        <!-- end project form -->
+                     
+        <?php endwhile; ?>
+		  <?php }else{ ?>
+		  		<div class="site_notice" style="padding-bottom: 25px;">This site does not have permission to create companies.</div>
+		  <?php } ?>	
+    </div> <!--/#content-->
+</section> <!--/#main-->
+<?php get_footer(); ?>
+<script>
+team_order = 1;
+bank_file_order = 1;
+financial_file_order = 1;
+extra_file_order = 1;
+
+jQuery(function($){
+	$('#team_section').on('click','#add_team_fields',function(){
+		var teamFieldsHtml = $('#team_fields').html();
+		teamFieldsHtml = teamFieldsHtml.replace(/{{order_number}}/g, team_order);
+		$('#team_fields_section').append(teamFieldsHtml); 
+		team_order++;
+	});
+	
+	// remove team member
+	$('#team_section').on('click','.remove-team-member',function(){
+		var orderNo = $(this).attr('data-order');
+		$('#'+orderNo).remove(); 
+	});
+	
+	$('#bank_file_section').on('click','#add_bank_file',function(){
+		var bankFileHtml = $('#bank_file_field').html();
+		bankFileHtml = bankFileHtml.replace(/{{order_number}}/g, bank_file_order);
+		$('#bank_files_section').append(bankFileHtml); 
+		bank_file_order++;
+	});
+	$('#financial_file_section').on('click','#add_financial_file',function(){
+		var financialFileHtml = $('#financial_file_field').html();
+		financialFileHtml = financialFileHtml.replace(/{{order_number}}/g, financial_file_order);
+		$('#financial_files_section').append(financialFileHtml); 
+		financial_file_order++;
+	});
+	
+	$('#extra_file_section').on('click','#add_extra_file',function(){
+		var extraFileHtml = $('#extra_file_field').html();
+		extraFileHtml = extraFileHtml.replace(/{{order_number}}/g, extra_file_order);
+		$('#extra_files_section').append(extraFileHtml); 
+		extra_file_order++;
+	});
+	
+	$('body').on('change','#investment-type',function(){
+		var InvT = $(this).val();
+		if(InvT == 'bond' || InvT == 'loan') {
+			/*var $option = $("<option/>", {
+			 value: '',
+			 text: 'N/A',
+			 selected: true
+		  });*/
+		  //$("#duration").prepend($option);
+		  
+		  // add bond related fields
+		  //$('#marketing_allowance_field').show();
+		  $('#coupon_field').show();
+		  $('#bond_expiry_field').show();
+		  $('#equity_offered_field').hide(); // hide equity offered field
+		}else{
+		  //$('#marketing_allowance_field').hide();
+		  $('#coupon_field').hide();
+		  $('#bond_expiry_field').hide();	
+		  $('#equity_offered_field').show();
+		  //$("#duration > option[value='']").remove();
+		}	 
+	});
+});
+</script>
+<style>
+	
+	#coupon_field,
+	#bond_expiry_field {
+		display: none;
+	}
+	
+</style>
+<?php restore_current_blog(); ?>
