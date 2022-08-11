@@ -1,0 +1,86 @@
+<?php
+/**
+ * New company posted email
+ *
+ */
+
+if ( ! defined( 'ABSPATH' ) ) {
+	exit; // Exit if accessed directly.
+}
+
+
+?>
+
+<!--<?php // do_action( 'woocommerce_email_header', $email_heading, $email ); ?>
+
+<p><?php // printf( esc_html__( 'Dear User,', 'woocommerce' )); ?></p>
+<p><?php //printf( esc_html__( 'New company \'%s\' has been posted on %s', 'woocommerce' ), esc_html( wp_specialchars_decode( $project->post_title ), ENT_QUOTES ), esc_html( $project->blogname, ENT_QUOTES ) ); ?></p>
+<p>Click on the following link to see the company: <br/>
+<?php // echo $project->postURL ?></p>
+
+<p><?php esc_html_e( 'We look forward to seeing you soon.', 'woocommerce' ); ?></p>
+
+<?php
+//do_action( 'woocommerce_email_footer', $email );
+
+?>-->
+<?php 
+	$themeum_options = get_option('themeum_options');
+	
+	if (isset($themeum_options['logo']))
+    {
+		
+		if($themeum_options['logo-text-en']) {
+			$logo = esc_html($themeum_options['logo-text']);
+		}
+		else
+		{
+			if(!empty($themeum_options['logo'])) {
+			
+				$logo = '<img class="enter-logo img-responsive" src="'.esc_url($themeum_options['logo']['url']).'" alt="" title="" width="27%">';
+			}else{
+				$logo = esc_html(get_bloginfo('name'));
+			}
+		}
+    }
+	else
+    {
+		$logo = esc_html(get_bloginfo('name'));
+    }
+?>
+<html lang="en"> 
+  
+<head> 
+	<meta charset="utf-8"> 
+	<meta name="viewport" 
+		  content="width=device-width, initial-scale=1, shrink-to-fit=no"> 
+	<link rel="stylesheet" 
+		  href="https://stackpath.bootstrapcdn.com/bootstrap/4.2.1/css/bootstrap.min.css"> 
+	<title>Email Template</title> 
+	<style>
+		
+	</style>
+</head> 
+  
+  <body> 
+	<div style='width:600px;margin:auto;background-color:#ffffff;border-radius: 3px!important;
+    background-color: #ffffff;
+    border: 1px solid #dedede;'>
+		
+		<div style="width: 600px; margin: 0 auto;">
+		  <div style="width: 100%; text-align: center; padding: 15px 0;">
+			<a href="'.get_site_url().'"><?php echo $logo ?></a>
+		  </div>
+		  <div style='padding: 36px 48px; background: #52B7EA; color: #fff;'><h1>".$subject."</h1></div>
+		  <div style="width: 100%;">
+		  
+			<div style="background-color: #f2f2f2; padding: 35px 0; width: 100%;  float: left; margin-bottom: 20px;">
+			  <div style="width: 35%; float: left; padding: 0 1%;"><a href="'.get_site_url().'"><?php echo $logo ?> </a></div>
+			</div>
+			 
+		  </div>
+		</div>
+	</div>
+  </body> 
+  
+</html>

@@ -1,0 +1,40 @@
+@font-face {
+    font-family: 'MarkProExtraLight';
+    src: url('/wp-content/themes/rightcrowd/wp-content/themes/rightcrowd/fonts/MarkProExtraLight.eot');
+    src: url('/wp-content/themes/rightcrowd/fonts/MarkProExtraLight.eot') format('embedded-opentype'),
+url('/wp-content/themes/rightcrowd/fonts/MarkProExtraLight.woff2') format('woff2'),
+url('/wp-content/themes/rightcrowd/fonts/MarkProExtraLight.woff') format('woff'),
+url('/wp-content/themes/rightcrowd/fonts/MarkProExtraLight.ttf') format('truetype'),
+url('/wp-content/themes/rightcrowd/fonts/MarkProExtraLight.svg#MarkProExtraLight') format('svg');
+}
+
+@font-face {
+    font-family: 'MarkPro';
+    src: url('/wp-content/themes/rightcrowd/fonts/MarkPro.eot');
+    src: url('/wp-content/themes/rightcrowd/fonts/MarkPro.eot') format('embedded-opentype'),
+url('/wp-content/themes/rightcrowd/fonts/MarkPro.woff2') format('woff2'),
+url('/wp-content/themes/rightcrowd/fonts/MarkPro.woff') format('woff'),
+url('/wp-content/themes/rightcrowd/fonts/MarkPro.ttf') format('truetype'),
+url('/wp-content/themes/rightcrowd/fonts/MarkPro.svg#MarkPro') format('svg');
+}
+
+@font-face {
+    font-family: 'MarkProLight';
+    src: url('/wp-content/themes/rightcrowd/fonts/MarkProLight.eot');
+    src: url('/wp-content/themes/rightcrowd/fonts/MarkProLight.eot') format('embedded-opentype'),
+url('/wp-content/themes/rightcrowd/fonts/MarkProLight.woff2') format('woff2'),
+url('/wp-content/themes/rightcrowd/fonts/MarkProLight.woff') format('woff'),
+url('/wp-content/themes/rightcrowd/fonts/MarkProLight.ttf') format('truetype'),
+url('/wp-content/themes/rightcrowd/fonts/MarkProLight.svg#MarkProLight') format('svg');
+}
+
+
+@font-face {
+    font-family: 'MarkProMedium';
+    src: url('/wp-content/themes/rightcrowd/fonts/MarkProMedium.eot');
+    src: url('/wp-content/themes/rightcrowd/fonts/MarkProMedium.eot') format('embedded-opentype'),
+url('/wp-content/themes/rightcrowd/fonts/MarkProMedium.woff2') format('woff2'),
+url('/wp-content/themes/rightcrowd/fonts/MarkProMedium.woff') format('woff'),
+url('/wp-content/themes/rightcrowd/fonts/MarkProMedium.ttf') format('truetype'),
+url('/wp-content/themes/rightcrowd/fonts/MarkProMedium.svg#MarkProMedium') format('svg');
+}

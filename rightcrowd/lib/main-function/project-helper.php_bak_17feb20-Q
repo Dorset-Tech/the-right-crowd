@@ -1,0 +1,4418 @@
+<?php
+function themeum_get_project_info($post_id,$type,$options = array()){
+
+    // themeum_get_project_info(get_the_ID(),'budget');
+    // themeum_get_project_info(get_the_ID(),'percent');
+    // themeum_get_project_info(get_the_ID(),'collected');
+    // themeum_get_project_info(get_the_ID(),'investor_number');
+    // themeum_get_project_info(get_the_ID(),'equity');
+    // themeum_get_project_info(get_the_ID(),'share_price');
+
+    if( $type=='budget' ){          // Return the total Budget
+        $budget = esc_attr(get_post_meta($post_id,"thm_funding_goal",true));  // Get the total Budget
+        return $budget;
+    }elseif( $type == 'percent' ){  // Return the Funding Percentage
+        $budget = esc_attr(get_post_meta($post_id,"thm_funding_goal",true));
+        global $wpdb;
+        $result = $wpdb->get_row( $wpdb->prepare("SELECT SUM(meta_value) as total FROM ".$wpdb->prefix."postmeta WHERE post_id = ANY(SELECT post_id FROM ".$wpdb->prefix."postmeta WHERE meta_key = '%s'  AND meta_value = '%d') AND meta_key = '%s'", 'themeum_investment_project_id', $post_id, 'themeum_investment_amount'));
+        $funding = 0;
+          if($budget != "" && $budget != 0 ){
+            if(isset($result->total)){
+              if( $result->total != 0 && is_numeric($result->total)){
+              	 if(isset($options['exact']) && $options['exact'] === true){
+              	 	$funding = number_format(($result->total/$budget)*100,2);
+              	 }else{
+                	$funding =  floor((($result->total)/$budget)*100);
+                }
+              }
+            }
+          }
+          return $funding;
+    }elseif( $type == 'collected' ){ // return Total collected fund
+        global $wpdb;
+        $result = $wpdb->get_row( $wpdb->prepare("SELECT SUM(meta_value) as total FROM ".$wpdb->prefix."postmeta WHERE post_id = ANY(SELECT post_id FROM ".$wpdb->prefix."postmeta WHERE meta_key = '%s'  AND meta_value = '%d') AND meta_key = '%s'", 'themeum_investment_project_id', $post_id, 'themeum_investment_amount'));
+        return $result->total;
+    }elseif($type == 'equity') {
+    	$equityoffer = get_post_meta(get_the_ID(), "thm_equityoffer", true);
+    	return $equityoffer;
+    }elseif($type == 'share_price') {
+    	$sharePrice = get_post_meta(get_the_ID(), "thm_share_price", true);
+    	return $sharePrice;
+    }elseif($type == 'days_remaining'){
+    	$eDate = get_post_meta(get_the_ID(), 'thm_end_date', true);
+       if ($eDate != '') {
+           $date1 = new DateTime();
+           $date2 = new DateTime($eDate);
+           return $date2->diff($date1)->format('%a');
+       } else {
+           return "∞";
+       }
+    }
+    else{ // Return Investor Number
+        $args = array(
+            'post_type' => 'investment',
+            'meta_key' => 'themeum_investment_project_id',
+            'meta_value' => $post_id,
+            'meta_compare' => '=',
+            'orderby' => 'meta_value',
+            'order' => 'ASC'
+          );
+        $events = new WP_Query($args);
+        $investor_num = count($events->posts); // Total Number of investor
+        return $investor_num;
+    }
+
+}
+
+
+/*--------------------------------------------------------------
+ *      Project Get Currency Symbol & Code (Add New Project)
+ *-------------------------------------------------------------*/
+function themeum_get_currency_symbol(){
+    $currency_array = array('AUD' => '$','BRL' => 'R$','CAD' => '$','CZK' => 'Kč','DKK' => 'kr.','EUR' => '€','HKD' => 'HK$','HUF' => 'Ft','ILS' => '₪','JPY' => '¥','MYR' => 'RM','MXN' => 'Mex$','NOK' => 'kr','NZD' => '$','PHP' => '₱','PLN' => 'zł','GBP' => '£','RUB' => '₽','SGD' => '$','SEK' => 'kr','CHF' => 'CHF','TWD' => '角','THB' => '฿','TRY' => 'TRY','USD' => '$');
+    $symbol = '';
+    $currency_type = esc_attr(get_option('paypal_curreny_code'));
+    if (array_key_exists( $currency_type , $currency_array)) {
+        $symbol = $currency_array[$currency_type];
+    }else{
+         $symbol = '$';
+    }
+    return $symbol;
+}
+function themeum_get_currency_code(){
+    $code = '';
+    $currency_type = esc_attr(get_option('paypal_curreny_code'));
+    if($currency_type == ''){
+        $code = 'USD';
+    }else{
+        $code = $currency_type;
+    }
+    return $code;
+}
+
+
+
+
+/*--------------------------------------------------------------
+ *      Project Get Rat option (Add New Project)
+ *-------------------------------------------------------------*/
+function themeum_get_ratting_data($post_id){
+
+    $output_arr =  array();
+    $html = '';
+    $output = get_post_meta($post_id,'project_ratting');
+    $i = 0;
+    if(is_array($output)){
+        foreach ($output as $value) {
+            $var = explode('*###*',$value);
+            $output_arr[] = $var[0];
+            $i = $i + $var[0];
+        }
+        if( $i != 0 ){
+            $i = ceil($i/count($output_arr)); 
+        }
+    }
+    
+    $html = '<ul class="list-unstyled list-inline">';
+    for ($j=1; $j <=5 ; $j++) { 
+        if($j<=$i){
+            $html .= '<li><i class="fa fa-star"></i></li>';
+        }else{
+            $html .= '<li><i class="fa fa-star-o"></i></li>';
+        }
+    }
+    $html .= '</ul>';
+
+return $html; 
+}
+
+/*************** Get All Category names of Project  ***************************/
+function getProjectCats($post_id) {
+	$cat_terms = wp_get_object_terms(get_the_ID(), 'project_category', array());
+	if(count($cat_terms) > 0) {
+		$cats = [];
+		foreach($cat_terms as $c) {
+			$cats[] = $c->name;
+		}
+		if(count($cats) > 0) {
+			return implode(', ',$cats);
+		}
+	}
+	return '';
+}
+
+/* Investment Info */
+function getInvestmentInfo($investmentID) {
+	$prefix = 'themeum_';
+	$metas = [
+		'project_name',
+		'invest_id',
+		'investor_user_id',
+		'investment_project_id',
+		'shares',
+		'investment_amount',
+		'payment_id',
+		'payment_method',
+		'investment_date',
+		'status_all',
+		'share_price',
+		'source_of_wealth',
+		'transfertype',
+		'investing_into',
+		'name_isa_provider',
+		'address1_isa_provider',
+		'address2_isa_provider',
+		'city_isa_provider',
+		'state_isa_provider',
+		'account_isa_provider',
+		'another_account_isa_provider',
+		'another_account',
+		'zip_isa_provider',
+		'full_part_isa_transfer'
+	];
+	$info = [];
+	foreach($metas as $meta) {
+		$info[$meta] = get_post_meta($investmentID,$prefix.$meta,true);
+	}
+	
+	return $info;
+}
+
+function getProjectInvestors($projectID){
+	global $switched;
+	switch_to_blog(1);
+	
+	$args = array(
+		'post_type' => 'investment',
+		'post_status'    => array('publish','pending','received'),
+		'meta_query' => array(
+			array(
+				'key'     => 'themeum_investment_project_id',
+				'value'   => $projectID,
+				'compare' => '='
+			)	
+		),
+		'posts_per_page'    => -1
+	);
+	
+	$investments = get_posts( $args );
+	$users = [];
+	foreach($investments as $investor) {
+		$investorID = get_post_meta($investor->ID,'themeum_investor_user_id',true);	
+		$users[] = $investorID;
+	}
+	$users = array_unique($users);
+	restore_current_blog();
+	return $users;
+}
+
+function getEmailHeader() {
+	//return "<div style='height:300px;'><img src='https://therightx.com/wp-content/uploads/email-banner.jpg' alt='' /></div>";
+	global $themeum_options;
+	if (isset($themeum_options['logo']))
+    {
+		
+		if($themeum_options['logo-text-en']) {
+			$logo = esc_html($themeum_options['logo-text']);
+		}
+		else
+		{
+			if(!empty($themeum_options['logo'])) {
+			
+				$logo = '<img class="enter-logo img-responsive" src="'.esc_url($themeum_options['logo']['url']).'" alt="" title="" width="27%">';
+			}else{
+				$logo = esc_html(get_bloginfo('name'));
+			}
+		}
+    }
+	else
+    {
+		$logo = esc_html(get_bloginfo('name'));
+    }
+	$header = '<!DOCTYPE html> 
+				<html lang="en"> 
+				  
+				<head> 
+					<meta charset="utf-8"> 
+					<meta name="viewport" 
+						  content="width=device-width, initial-scale=1, shrink-to-fit=no"> 
+					<link rel="stylesheet" 
+						  href="https://stackpath.bootstrapcdn.com/bootstrap/4.2.1/css/bootstrap.min.css"> 
+					<title>Email Template</title> 
+					<style>
+						
+					</style>
+				</head> 
+				  
+				  <body> 
+					<div style="width: 600px; margin: 0 auto;">
+					  <div style="width: 100%; text-align: center; padding: 15px 0;">
+						<a href="'.get_site_url().'">'.$logo.'</a>
+					  </div>
+					  <div style="width: 100%;">
+					  ';
+	  
+	  return $header;
+	
+}
+function testme() {
+	global $themeum_options;
+	echo "<pre>";
+	print_r($themeum_options);
+	echo "</pre>";
+	exit;
+}
+//testme();
+function getEmailFooter() {
+	global $themeum_options;
+	if (isset($themeum_options['logo']))
+    {
+		
+		if($themeum_options['logo-text-en']) {
+			$logo = esc_html($themeum_options['logo-text']);
+		}
+		else
+		{
+			if(!empty($themeum_options['logo'])) {
+			
+				$logo = '<img class="enter-logo img-responsive" style="max-width : 100%;" src="'.esc_url($themeum_options['logo']['url']).'" alt="" title="">';
+			}else{
+				$logo = esc_html(get_bloginfo('name'));
+			}
+		}
+    }
+	else
+    {
+		$logo = esc_html(get_bloginfo('name'));
+    }
+	//$footerContent = get_theme_mod('email_footer_text');
+	//$footerContent = str_replace("[logo]",$logo,$footerContent);
+	$footer = '<div style="background-color: #f2f2f2; padding: 35px 0; width: 100%;  float: left; margin-bottom: 20px;">
+          <div style="width: 35%; float: left; padding: 0 1%;"><a href="'.get_site_url().'">'.$logo.'</a></div>';
+		  if(get_current_blog_id() == 15) {
+          $footer .= '<div style="width: 60%; float: right; padding: 0 2%;">
+            OFFICE  +44 (0)1843 423256 <br>
+            <a href="mailto:info@apex-capital.co.uk">info@apex-capital.co.uk</a>  |  <a href="apex-capital.co.uk">apex-capital.co.uk</a> <br>
+            Unit 14 | Invicta Way | Manston Park | Ramsgate | Kent | CT12 5FD
+          </div>';
+		  }
+		  
+        $footer .= '</div>';
+		if(get_current_blog_id() == 15) {
+        $footer .= '<div style="width: 100%; font-size: 12px;">
+          Apex Capital is a trading style of Opes Distribution Limited, a company registered in England & Wales, under company number 10673801 with registered address at 14, Invicta Way, Manston Park, Ramsgate, Kent. CT12 5FD<br><br>
+ 
+          The value of any investments can go down as well as up and you might not get back what you put in. These products featured are not regulated by the Financial Conduct Authority or covered by the Financial Services Compensation Scheme, or the Financial Ombudsman Service.<br><br>
+           
+          “The information contained in this e-mail is confidential and may also be subject to legal privilege. It is intended only for the recipient(s) named above. If you are not named above as a recipient, you must not read, copy, disclose, forward or otherwise use the information contained in this email. If you have received this e-mail in error, please notify the sender (whose contact details are above) immediately by reply e-mail and delete the message and any attachments without retaining any copies.
+        </div>';
+		 }
+		 
+      $footer .= '</div>
+    </div>
+  </body> 
+  
+</html>';
+
+return $footer;
+}
+
+function getEmailBody($subject,$content) {
+		  $message = "<div style='width:600px;margin:auto;background-color:#ffffff;border-radius: 3px!important;
+    background-color: #ffffff;
+    border: 1px solid #dedede;'>"; // main wrapper 
+		  $message .= getEmailHeader();   
+		  $message .= "<div style='padding: 36px 48px; background: #52B7EA; color: #fff;'><h1>".$subject."</h1></div>";
+		  $message .= "<div style='padding: 48px;'>"; // content
+			$message .= $content;
+	  	  $message .= "</div>"; // end of content
+	  	  $message .= getEmailFooter();
+  	  $message .= "</div>"; // end of main wrapper
+  	  
+  	  return $message;
+}
+
+function email_user_on_fundrais_complete($companyId,$args = array()) {
+			  
+			  $companyName = get_the_title($companyId);
+			  $company = get_post($companyId);
+		  	  $subject = "Fundraising completed for your company : $companyName";
+			  $message = "Congratulations your company has now completed its fundraising and you are now a shareholder within the company. Your shares are now held by The Right Crowd nominee limited and can be viewed in your account on (<a href='http://therightx.com'>The Right exchange</a>).<br/><br/>";
+	  		  $message .= "Best Wishes<br/>The Right Crowd";
+		     
+		     //$body = getEmailBody($subject,$message);
+		     
+		     $headers = array('Content-Type: text/html; charset=UTF-8');
+		     	$holder = get_userdata($company->post_author);
+		     	wp_mail($holder->user_email, $subject, $message,$headers);
+}
+
+function email_user_on_payment($userID,$companyId,$args = array()) {
+			  global $switched;
+			  switch_to_blog(1);
+			  $companyName = get_the_title($companyId);
+			  $company = get_post($companyId);
+			  restore_current_blog();
+			  $amount = $args['amount'];
+		  	  $subject = "Thank you for investing in : $companyName";
+			  $message = "Dear User,<br/>Thank you for making an investment. The details are below:<br/>Company Name: $companyName<br/>Amount: £$amount";
+	  		  $message .= "<br/><br/>Best Wishes<br/>The Right Crowd";
+		     
+		     //$body = getEmailBody($subject,$message);
+		     
+		     $headers = array('Content-Type: text/html; charset=UTF-8');
+		     $holder = get_userdata($userID);
+		     wp_mail($holder->user_email, $subject, $message,$headers);
+				
+			// send this email with client details to Apex-Capital if investment done on Apex-Capital 
+			$siteID = get_post_meta($companyId,'thm_site_id',true);
+			if($siteID == 15) {
+				global $switched;
+				switch_to_blog(1);
+				$companyName = get_the_title($companyId);
+				$company = get_post($companyId);
+				restore_current_blog();
+				$holder = get_userdata($userID);
+				$amount = $args['amount'];
+				$subject = "Investment made in company : $companyName";
+				$message = "Dear Admin,<br/>An Investment is made in the company on www.apex-capital.co.uk. The details are below:<br/>
+					Company Name: $companyName<br/>
+					User Name: ".$holder->data->first_name." ".$holder->data->last_name."<br/>
+					User ID: ".$holder->ID."
+					Amount: £$amount";
+				$message .= "<br/><br/>Best Wishes<br/>The Right Crowd";
+				
+				$headers = array('Content-Type: text/html; charset=UTF-8');
+				
+				wp_mail('info@apex-capital.co.uk', $subject, $message,$headers);
+			}			
+}
+
+/*function email_user_on_bank_transfer_payment($userID,$companyId,$args = array()) {
+			  global $switched;
+			  switch_to_blog(1);
+			  $companyName = get_the_title($companyId);
+			  $company = get_post($companyId);
+			  restore_current_blog();
+			  $amount = $args['amount'];
+			  $ref = $args['ref'];
+		  	  //Name: Right Crowd Ltd<br/>
+			  $subject = "Thank you for investing in : $companyName";
+			  $message = "Dear User,<br/>Thank you for making an investment in company: $companyName.<br/>You have used 'Bank Transfer Payment Method'. The Bank transfer is to be made to the bank details below:<br/><br/>
+				Acc Number: 10074040<br/>
+				Sort Code: 09-02-22<br/>
+				Reference: $ref<br/>
+				Amount: £$amount";
+			  $message .= "<br/><br/>A confirmation email will be sent to you once we have confirmed that funds have been received.";	
+	  		  $message .= "<br/><br/>Best Wishes<br/>Apex Capital";
+		     
+		     //$body = getEmailBody($subject,$message);
+		     
+		     $headers = array('Content-Type: text/html; charset=UTF-8');
+			$holder = get_userdata($userID);
+			//wp_mail($holder->user_email, $subject, $message,$headers);
+}*/
+function email_user_on_bank_transfer_payment($userID,$companyId,$args = array()) {
+			  global $switched;
+			  switch_to_blog(1);
+			  $companyName = get_the_title($companyId);
+			  $company = get_post($companyId);
+			  restore_current_blog();
+			  $currentSite = get_current_blog_id();
+			  $amount = $args['amount'];
+			  $ref = $args['ref'];
+			  $holder = get_userdata($userID);
+		  	  //Name: Right Crowd Ltd<br/> OLD bank : 10074040
+			  $subject = "Thank you for investing in : $companyName";
+			  $content = getEmailHeader();
+			  if($args['transfertype'] == 'isa_transfer') {
+					$content .= '<h6 style="font-size: 16px; margin-bottom: 15px;">Hello '.$holder->user_login.',</h6>
+							<div style="font-size: 16px; font-weight: 500; margin-bottom: 20px;">
+							  Thank you for submitting your investment instruction of £'.$amount.' into ('.$companyName.')<br><br>
+
+							  Just one step to finalise your investment and start receiving your coupons!<br><br>
+
+							  You will now be sent your transfer application forms in the post, please sign and return the forms in the stamped address envelope provided.<br/><br/>
+
+							A confirmation email will be sent to you once we have confirmed that funds have been received and you will also be able to track, manage and Re-invest on your Dashboard here:<br/><br/>
+							<a href="'.get_site_url().'/dashboard">Dashboard</a><br/><br/>
+							
+							Kind Regards
+							</div>';
+			  }else{
+					$content .= '<h6 style="font-size: 16px; margin-bottom: 15px;">Hello '.$holder->user_login.',</h6>
+							<div style="font-size: 16px; font-weight: 500; margin-bottom: 20px;">
+							  Thank you for submitting your investment instruction into ('.$companyName.')<br>
+							  Please login to your <a href="'.get_site_url().'/dashboard">dashboard</a> and enter the bank details of where you wish your coupons to be paid in to.<br/><br/>
+							  Just one step to finalise your investment and start receiving your coupons!<br><br>
+							';
+							
+						if($currentSite == 29) {	
+							$content .=	'Simply use the below bank details to transfer investment funds to our FCA regulated client account at Clear Bank.<br><br>';
+						}else{
+							$content .=	'Simply use the below bank details to transfer investment funds.<br><br>';
+						} 
+						/*
+						<strong>USD</strong><br/>
+							Name of Product: '.$companyName.'<br/>
+							Bank: BCB Prime Services Limited, Silvergate Bank<br/>
+							Account: 5090011361<br/>
+							SWIFT/BIC: PCBBUS66<br/>
+							Reference: '.$ref.'<br/>
+							Amount: £'.$amount.'<br/><br/>
+							
+							IBAN: GB42 CLRB 040541 00003992<br/>
+						*/
+						$content .=	'
+							<strong>GBP ACC</strong><br/>
+							Name of Product: '.$companyName.'<br/>
+							Bank: WCSL NORTHERN PROVIDENT CLIENT ACC<br/>
+							Sort code: 23-05-80<br/>
+							Account: 27294286<br/>
+							Reference: '.$ref.'<br/>
+							Amount: £'.$amount.'<br/><br/>
+
+							A confirmation email will be sent to you once we have confirmed that funds have been received and you will also be able to track, manage and Re-invest on your Dashboard here:<br/><br/>
+							<a href="'.get_site_url().'/dashboard">Dashboard</a><br/><br/>
+							
+							Kind Regards
+							</div>';
+				  
+				  
+				  /*<strong>EUR ACC</strong></br/>
+							Name of Product: '.$companyName.'<br/>
+							Bank: InCore Bank AG, Switzerland<br/>
+							IBAN: CH41 0879 9927 5111 1381 4<br/>
+							SWIFT/BIC: INCOCHZZXXX<br/>
+							Reference: '.$ref.'<br/>
+							Amount: £'.$amount.'<br/><br/>
+				*/			
+			  }
+			$content .= getEmailFooter();
+		     
+		     //$body = getEmailBody($subject,$message);
+		     
+		     $headers = array('Content-Type: text/html; charset=UTF-8');
+			//$holder = get_userdata($userID);
+			wp_mail($holder->user_email, $subject, $content,$headers);
+			
+			// send email to admin 
+			$subject = "New investment in : $companyName";
+			$message = "A new investment done in company: $companyName <br/>";
+			$message .=  "Details are: <br/>";
+			$message .= 'Name of Product: '.$companyName.'<br/>
+							Reference: '.$ref.'<br/>
+							Amount: £'.$amount.'<br/><br/>';
+			$message .= "Please take an action on the investment <a href='https://therightcrowd.com/wp-admin/edit.php?post_type=investment' >here</a><br/><br/>";
+			$message .= "Thank you";
+			
+			wp_mail('Admin@therightcrowd.com', $subject, $message,$headers);
+}
+
+function send_admin_email_on_new_approval_queue($queue,$site_id,$postsTitles) {
+	$current_blog_details = get_blog_details( $site_id );
+	$siteName = $current_blog_details->blogname;
+	// send email to admin 
+	$subject = "New products approval request to display on: $siteName";
+	$message = "New products approval request to display on site: $siteName <br/>";
+	$message .=  "Product names are: <br/>";
+	
+	/*global $switched;
+	switch_to_blog(1);
+	$posts = get_posts(array(
+		'include'   => $newQueue
+	));*/
+	//restore_current_blog();
+	if(count($postsTitles) > 0) {
+		$message .= "<ul>";
+		foreach($postsTitles as $postTitle){
+			$message .= "<li>".$postTitle."</li>";
+		}
+		$message .= "</ul>";
+	}
+	$message .= "Please take an action <a href='' >here</a><br/><br/>";
+	$message .= "Thank you";
+	$headers = array('Content-Type: text/html; charset=UTF-8');
+	wp_mail('Admin@therightcrowd.com', $subject, $message,$headers);
+}
+
+function isManager($user_id = null) {
+	if(current_user_can('seeadmin')) {
+			return true;
+	}
+	return false;
+}
+
+add_action( 'wp_ajax_nopriv_change_post_status', 'change_post_status' );
+add_action( 'wp_ajax_change_post_status', 'change_post_status' );
+function change_post_status() {
+		restore_current_blog();
+	$isManager = isManager();
+	global $switched;
+   switch_to_blog(1);
+	$ret = array('status'=>'false');
+	if($isManager) {
+		if( (int) $_POST['pid'] > 0 && $_POST['post_status'] != '') {
+			wp_update_post(array(
+		     'ID'    =>  $_POST['pid'],
+		     'post_status'   =>  $_POST['post_status']
+		     ));	
+		}
+		$ret['status'] = 'true';
+		restore_current_blog();
+		echo json_encode($ret);die();	
+	}
+	restore_current_blog();
+	echo json_encode($ret);die();	
+}
+
+add_action( 'wp_ajax_nopriv_d_p', 'del_post' );
+add_action( 'wp_ajax_d_p', 'del_post' );
+function del_post() {
+	restore_current_blog();
+	$isManager = isManager();
+	global $switched;
+   switch_to_blog(1);
+	$ret = array('status'=>'false');
+	if($isManager) {
+		if( (int) $_POST['pid'] > 0) {
+			wp_delete_post($_POST['pid']);	
+		}
+		$ret['status'] = 'true';
+		restore_current_blog();
+		echo json_encode($ret);die();	
+	}
+	restore_current_blog();
+	echo json_encode($ret);die();	
+}
+
+add_action( 'wp_ajax_nopriv_display_business_child', 'display_business_child' );
+add_action( 'wp_ajax_display_business_child', 'display_business_child' );
+function display_business_child() {
+	//restore_current_blog();
+	$isManager = isManager();
+	//global $switched;
+	//switch_to_blog(1);
+	$currentSite = get_current_blog_id();
+	
+	$ret = array('status'=>'false');
+	if($isManager) {
+		//if( isset($_POST['display_business'])) {
+			/**/
+			$currentSite = get_current_blog_id();
+			$key = 'display_business_'.$currentSite;
+			$approvalKey = 'display_business_approval_'.$currentSite;
+			$approvalQueueKey = 'approval_queue_'.$currentSite;
+			$params = array();
+			parse_str($_POST['data'], $params);
+			$pids = array_keys($params['display_business']);
+			/*echo "<pre>";
+			print_r($pids);
+			exit;*/
+			$siteType = get_option('site_type');
+			$parent = (int) get_option('parent_site');
+
+			//if($siteType == 'child' && $parent) {
+				 //global $switched;
+				 //switch_to_blog($parent);
+			//}elseif($siteType == 'master') {
+				global $switched;
+				 switch_to_blog(1);
+			//}
+			$args = array(
+				 'post_type' 		=> 'project',
+				 'post_status'		=> array('publish','pending'),
+				 'posts_per_page'    => -1
+			);
+			$posts = get_posts($args);
+			$postsToApprove = [];
+			$postsTitles = [];
+			foreach($posts as $p) {
+				$approved = get_post_meta($p->ID,$approvalKey,true);
+				if(in_array($p->ID,$pids)) {
+					if($approved == '' || $approved == 'no') {
+						update_post_meta($p->ID,$key,'yes');
+						update_post_meta($p->ID,$approvalKey,'no');
+						$postsToApprove[$p->ID] = $p->ID;
+						$postsTitles[] = $p->post_title;
+						
+					}else{
+						update_post_meta($p->ID,$key,'yes');
+					}
+				}else{
+					update_post_meta($p->ID,$key,'no');
+				}
+			}
+			// set approval queue for admins 
+			//update_approval_queue();
+			$oldApprovalQueue = get_option($approvalQueueKey);
+			$oldApprovalQueue = array_unique($oldApprovalQueue);
+			if($oldApprovalQueue != '') {
+				$newQueue = array_merge($oldApprovalQueue,$postsToApprove);
+			}else{
+				$newQueue = $postsToApprove;
+			}
+			$newQueue = array_unique($newQueue);
+			update_option($approvalQueueKey,$newQueue);
+			//send email to admin here 
+			send_admin_email_on_new_approval_queue($newQueue,$currentSite,$postsTitles);
+			restore_current_blog();
+		//}
+		$ret['status'] = 'true';
+		echo json_encode($ret);die();	
+	}
+	echo json_encode($ret);die();	
+}
+
+add_action( 'wp_ajax_nopriv_display_file', 'display_file' );
+add_action( 'wp_ajax_display_file', 'display_file' );
+function display_file() {
+	restore_current_blog();
+	$isManager = isManager();
+	global $switched;
+   switch_to_blog(1);
+	$ret = array('status'=>'false');
+	if($isManager) {
+		if( (int) $_POST['pid'] > 0) {
+			//update_post_meta();
+			$metaKey = $_POST['metaKey'];
+			$value = $_POST['value'];
+			update_post_meta($_POST['pid'],$metaKey,$value);
+		}
+		$ret['status'] = 'true';
+		restore_current_blog();
+		echo json_encode($ret);die();	
+	}
+	restore_current_blog();
+	echo json_encode($ret);die();	
+}
+
+add_action( 'wp_ajax_nopriv_delete_uploaded_file', 'delete_uploaded_file' );
+add_action( 'wp_ajax_delete_uploaded_file', 'delete_uploaded_file' );
+function delete_uploaded_file() {
+	restore_current_blog();
+	$isManager = isManager();
+	global $switched;
+   switch_to_blog(1);
+	$ret = array('status'=>'false');
+	if($isManager) {
+		if( (int) $_POST['pid'] > 0) {
+			//update_post_meta();
+			$metaKey = $_POST['metaKey'];
+			$relation = $_POST['rel'];
+			$fileID = $_POST['file_id'];
+			switch($relation) {
+				case 'bank':
+					$banks = get_post_meta($_POST['pid'],'thm_bank_statements',true);
+					$key = array_search($fileID, $banks);
+					if (false !== $key) {
+						unset($banks[$key]);
+						$banks = array_values($banks);
+						delete_post_meta($_POST['pid'],$metaKey);
+					}
+					update_post_meta($_POST['pid'],'thm_bank_statements',$banks);
+					$ret['status'] = 'true';
+				break;
+				case 'financial':
+					$banks = get_post_meta($_POST['pid'],'thm_financial_reports',true);
+					$key = array_search($fileID, $banks);
+					if (false !== $key) {
+						unset($banks[$key]);
+						$banks = array_values($banks);
+						delete_post_meta($_POST['pid'],$metaKey);
+					}
+					update_post_meta($_POST['pid'],'thm_financial_reports',$banks);
+					$ret['status'] = 'true';
+				break;
+				case 'extra':
+					$banks = get_post_meta($_POST['pid'],'thm_extra_files',true);
+					$key = array_search($fileID, $banks);
+					$titleMetaKey = "extra_file_title_".$fileID;
+					if (false !== $key) {
+						unset($banks[$key]);
+						$banks = array_values($banks);
+						delete_post_meta($_POST['pid'],$metaKey);
+						delete_post_meta($_POST['pid'],$titleMetaKey);
+					}
+					update_post_meta($_POST['pid'],'thm_extra_files',$banks);
+					$ret['status'] = 'true';
+				break;
+			}
+			
+		}
+		restore_current_blog();
+		echo json_encode($ret);die();	
+	}
+	restore_current_blog();
+	echo json_encode($ret);die();	
+}
+
+add_action( 'wp_ajax_nopriv_save_extra_title', 'save_extra_title' );
+add_action( 'wp_ajax_save_extra_title', 'save_extra_title' );
+function save_extra_title() {
+	restore_current_blog();
+	$isManager = isManager();
+	global $switched;
+   switch_to_blog(1);
+	$ret = array('status'=>'false');
+	if($isManager) {
+		if( (int) $_POST['pid'] > 0) {
+			//update_post_meta();
+			$metaKey = $_POST['metaKey'];
+			$value = $_POST['value'];
+			update_post_meta($_POST['pid'],$metaKey,$value);
+		}
+		$ret['status'] = 'true';
+		restore_current_blog();
+		echo json_encode($ret);die();	
+	}
+	restore_current_blog();
+	echo json_encode($ret);die();	
+}
+
+function getPostsFromOtherSite() {
+	$siteType = get_option('site_type');
+	$parent = (int) get_option('parent_site');
+	$currentSite = get_current_blog_id();
+	if($siteType == 'child' && $parent) {
+	 global $switched;
+    switch_to_blog($parent);
+	}elseif($siteType == 'master') {
+		global $switched;
+		 switch_to_blog(1);
+	}else{
+		return array();
+	}
+	$args = array(
+		 'post_type' 		=> 'project',
+		 'post_status'		=> array('publish'),
+		 'posts_per_page'    => -1
+	);
+	$query = new WP_Query($args);
+	restore_current_blog();
+	
+   return $query;
+}
+
+add_action('init', function() {
+  $url_path = trim(parse_url(add_query_arg(array()), PHP_URL_PATH), '/');
+  $parts = explode('/',$url_path);
+  if ( $parts[0] == 'project' ) {
+     // load the file if exists
+     $load = locate_template('single-project.php', true);
+     if ($load) {
+        exit(); // just exit if template was found and loaded
+     }
+  }
+});
+
+function getProjectURL($id,$homeURL) {
+	$orgURL = get_the_permalink($id);
+//	echo $orgURL;
+	//echo $orgURL;exit;
+   $urlParsed = parse_url($orgURL);
+   /*if(isset($urlParsed['query'])) {
+   	return $homeURL."?".$urlParsed['query'];
+   }*/
+   $urlParts = explode("blog",$urlParsed['path']);
+   if(strpos($orgURL,"blog")) {
+   	$postURL = $homeURL.$urlParts[1];
+   }else{
+   	$postURL = $homeURL.$urlParts[0];
+   }
+   
+   return $postURL;
+}
+
+function thmtheme_call_sub_header(){
+   global $themeum_options;
+   if(isset($themeum_options['blog-banner']['url'])){
+       $output = 'style="background-image:url('.esc_url($themeum_options['blog-banner']['url']).');background-size: cover;background-position: 50% 50%;padding: 80px 0;"';
+       return $output;
+   }else{
+        $output = 'style="background-color:'.esc_attr($themeum_options['blog-subtitle-bg-color']).';padding: 80px 0;"';
+        return $output;
+   }
+}
+ 
+function getProjectImageThumbSrc($id) {
+	
+    $siteID = get_post_meta($id,'thm_site_id',true);
+	$attachmentId = get_post_meta($id,'_thumbnail_id',true);
+	global $switched;
+	switch_to_blog($siteID);
+	$image = wp_get_attachment_image_src($attachmentId, 'full');
+	restore_current_blog();
+	global $switched;
+		 switch_to_blog(1);
+	
+	return $image ? $image[0] : false;
+}
+
+function getProjectFiles($id) {
+	restore_current_blog();
+	global $switched;
+		 switch_to_blog(1);
+	
+	$siteID = get_post_meta($id,'thm_site_id',true);
+	$comp_cert = get_post_meta($id,'thm_certificate',true);
+	$article = get_post_meta($id,'thm_article',true);
+	$memorandum = get_post_meta($id,'thm_memorandum',true);
+	$banks = get_post_meta($id,'thm_bank_statements',true);
+	$financials = get_post_meta($id,'thm_financial_reports',true);
+	$extraFiles = get_post_meta($id,'thm_extra_files',true);
+	restore_current_blog();
+	
+	
+	$array = [];
+	global $switched;
+	switch_to_blog($siteID);
+	
+	$array['certificate'] = array( 'path' => wp_get_attachment_url($comp_cert), 'id'=>$comp_cert);
+	$array['article'] = array( 'path' => wp_get_attachment_url($article), 'id' => $article);
+ 	$array['memorandum'] = array( 'path' => wp_get_attachment_url($memorandum), 'id' => $memorandum);
+ 	$array['banks'] = [];
+ 	$array['financials'] = [];
+ 	$array['extraFiles'] = [];
+ 	if(count($banks) > 0) {
+ 		foreach($banks as $bank) {
+ 			$array['banks'][$bank] = wp_get_attachment_url($bank);
+ 		}
+ 	}
+ 	if(count($financials) > 0) {
+ 		foreach($financials as $financial) {
+ 			$array['financials'][$financial] = wp_get_attachment_url($financial);
+ 		}
+ 	}
+ 	if(count($extraFiles) > 0) {
+ 		foreach($extraFiles as $extraFile) {
+ 			$array['extraFiles'][$extraFile] = wp_get_attachment_url($extraFile);
+ 		}
+ 	}	 
+	return $array;	 
+}
+
+add_action( 'wp_ajax_nopriv_save_terms_conditions', 'save_terms_conditions' );
+add_action( 'wp_ajax_save_terms_conditions', 'save_terms_conditions' );
+function save_terms_conditions() {
+	
+	$ret = array('status'=>'false');
+	if(get_current_user_id()) {
+			update_user_meta(get_current_user_id(),'tandc',$_POST['value']);
+			$ret['status'] = 'true';
+		echo json_encode($ret);die();	
+	}
+	
+	echo json_encode($ret);die();	
+}
+
+add_action( 'wp_ajax_nopriv_bank_transfer', 'bank_transfer' );
+add_action( 'wp_ajax_bank_transfer', 'bank_transfer' );
+function bank_transfer() {
+	restore_current_blog();
+	$currentSiteID = get_current_blog_id();
+	
+	switch_to_blog($currentSiteID);
+	$ret = array('status'=>'false');
+	if(get_current_user_id()) {
+		$projectID = $_POST['project_id'];
+		$amount = sprintf('%0.2f', $_POST['amount'] / 100.0);
+		$userID = get_current_user_id();
+		$reference = 'TRC2019'.$userID;
+		$source = $_POST['source'];
+		$transfertype = $_POST['transfertype'];
+		$investing_into = $_POST['investing_into'];
+		$name_isa_transfer = $_POST['name_isa_provider'];
+		$address1_isa_transfer = $_POST['address1_isa_provider'];
+		$address2_isa_transfer = $_POST['address2_isa_provider'];
+		$city_isa_transfer = $_POST['city_isa_provider'];
+		$state_isa_transfer = $_POST['state_isa_provider'];
+		$account_isa_transfer = $_POST['account_isa_provider'];
+		$zip_isa_transfer = $_POST['zip_isa_provider'];
+		$full_part_isa_transfer = $_POST['full_part_isa_provider'];
+		$niNumber = isset($_POST['ni_number']) ? $_POST['ni_number'] : '';
+		
+		restore_current_blog();
+		global $switched;
+		switch_to_blog(1);
+		// insert investment as pending 
+		$postTitle = "Investment in company : ".get_the_title($projectID);
+		$order_page = array(
+				'post_title'    => $postTitle,
+				'post_content'  => '',
+				'post_status'   => 'pending',
+				'post_author'   => esc_attr( $userID ), //1,
+				'post_parent' => $projectID,
+				'post_type'     => 'investment'
+			);
+
+			// assigning number of shares to investor user 
+			$sharePrice = get_post_meta($projectID,'thm_share_price',true);
+			if($sharePrice == '') {
+				$sharePrice = 1;
+			}
+			$totalShares = (int) (($amount*100)/$sharePrice);
+		  
+			$post_id = wp_insert_post( $order_page );
+			restore_current_blog();
+			switch_to_blog(1);
+			update_post_meta( $post_id , 'themeum_project_name', esc_attr( get_the_title($projectID) ));
+			update_post_meta( $post_id , 'themeum_invest_id', 'via Bank');
+			update_post_meta( $post_id , 'themeum_investor_user_id', esc_attr( $userID ));
+			update_post_meta( $post_id , 'themeum_investment_project_id', $projectID);
+			update_post_meta( $post_id , 'themeum_shares', $totalShares);
+			update_post_meta( $post_id , 'themeum_investment_amount', esc_attr( $amount ));
+			update_post_meta( $post_id , 'themeum_payment_id', 'via Bank');
+			update_post_meta( $post_id , 'themeum_payment_method', 'bank' );
+			update_post_meta( $post_id , 'themeum_investment_date', date("Y-m-d h:i",time()) );
+			update_post_meta( $post_id , 'themeum_status_all', 'pending' );
+			update_post_meta( $post_id , 'themeum_share_price', $sharePrice );
+			update_post_meta( $post_id , 'themeum_payment_ref', $reference );
+			update_post_meta( $post_id , 'site_id', $currentSiteID );
+			update_post_meta( $post_id , 'themeum_source_of_wealth', $source );
+			update_post_meta( $post_id , 'themeum_investing_into', $investing_into );
+			if($transfertype != '') {
+				update_post_meta( $post_id , 'themeum_transfertype', $transfertype );
+			}
+			if($name_isa_transfer != '') {
+				update_post_meta( $post_id , 'themeum_name_isa_provider', $name_isa_transfer );
+			}
+			if($address1_isa_transfer != '') {
+				update_post_meta( $post_id , 'themeum_address1_isa_provider', $address1_isa_transfer );
+			}
+			if($address2_isa_transfer != '') {
+				update_post_meta( $post_id , 'themeum_address2_isa_provider', $address2_isa_transfer );
+			}
+			if($city_isa_transfer != '') {
+				update_post_meta( $post_id , 'themeum_city_isa_provider', $city_isa_transfer );
+			}
+			if($state_isa_transfer != '') {
+				update_post_meta( $post_id , 'themeum_state_isa_provider', $state_isa_transfer );
+			}
+			if($zip_isa_transfer != '') {
+				update_post_meta( $post_id , 'themeum_zip_isa_provider', $zip_isa_transfer );
+			}
+			if($account_isa_transfer != '') {
+				update_post_meta( $post_id , 'themeum_account_isa_provider', $account_isa_transfer );
+			}
+			if($full_part_isa_transfer != '') {
+				update_post_meta( $post_id , 'themeum_full_part_isa_transfer', $full_part_isa_transfer );
+			}
+			if($niNumber != '') {
+				update_post_meta( $post_id , 'themeum_full_part_isa_transfer', $full_part_isa_transfer );
+				update_user_meta( $userID, 'ni_number', true);
+			}
+		// restore the blog
+		restore_current_blog();
+		switch_to_blog($currentSiteID);
+		// fire email to user for thank you 
+		//email_user_on_payment($userID,$projectID,array('amount' => $amount));
+		
+		// email bank transfer status and details
+		email_user_on_bank_transfer_payment($userID,$projectID,array('amount' => $amount,'ref'=>$reference,'transfertype' => $transfertype, 'source' => $source));
+		//generatePDFformAndSendEmail($userID,$projectID,array('amount' => $amount,'ref'=>$reference));
+		$ret['status'] = 'true';
+		$ret['redirect'] = esc_url(get_option("payment_success_page"))."?pid=".$projectID;
+		echo json_encode($ret);die();	
+	}
+	
+	echo json_encode($ret);die();	
+}
+/*add_action( 'wp_mail_failed', 'onMailError', 10, 1 );
+function onMailError( $wp_error ) {
+    echo "<pre>";
+    print_r($wp_error);
+    echo "</pre>";
+	exit;
+}  */
+function getFundRaised($period = 'today') {
+	// $period could be today, week, month, all/''
+	$isManager = isManager();
+	$currentUserID = get_current_user_id();
+	global $wpdb, $switched;
+	$site_id = get_current_blog_id();
+	switch_to_blog(1);
+	$date = date('Y-m-d'); //'2019-03-26';
+        //$result = $wpdb->get_row( $wpdb->prepare("SELECT SUM(meta_value) as total FROM ".$wpdb->prefix."postmeta WHERE site_id = ANY(SELECT site_id FROM ".$wpdb->prefix."postmeta WHERE meta_key = '%s'  AND meta_value = '%d') AND meta_key = '%s'", 'site_id', $site_id, 'themeum_investment_amount'));
+        //return $result->total;
+	$args = array(
+	'post_type' => 'investment',
+	'post_status'    => 'publish',
+	'author' => $currentUserID,
+    'meta_query' => array(
+        array(
+            'key' => 'themeum_investment_date',
+            'value' => $date,
+            'compare' => '=',
+			'type'    => 'DATE' 
+        ),
+        array(
+            'key' => 'site_id',
+            'value' => $site_id,
+            'compare' => '='
+        )
+    )
+);
+if($period == 'week') {
+	$dayOfWeek = date('w');
+	if($dayOfWeek == 1) {
+		$lastMonday = date('Y-m-d');
+	}else{
+		$lastMonday = date('Y-m-d',strtotime('last monday',time()));
+	}
+	$today = date('Y-m-d');
+	$args['meta_query'] = array(
+		array(
+			'key'     => 'themeum_investment_date',
+			'value'   => $today,
+			'compare' => '<=',
+			'type'    => 'DATE'
+		),
+		array(
+			'key'     => 'themeum_investment_date',
+			'value'   => $lastMonday,
+			'compare' => '>=',
+			'type'    => 'DATE'
+		),
+        array(
+            'key' => 'site_id',
+            'value' => $site_id,
+            'compare' => '='
+        )
+    );
+}
+
+if($period == 'month') {
+	$firstDate = date('Y-m-01');
+    $lastDate  = date('Y-m-t');
+	$args['meta_query'] = array(
+		array(
+			'key'     => 'themeum_investment_date',
+			'value'   => $lastDate,
+			'compare' => '<=',
+			'type'    => 'DATE'
+		),
+		array(
+			'key'     => 'themeum_investment_date',
+			'value'   => $firstDate,
+			'compare' => '>=',
+			'type'    => 'DATE'
+		),
+        array(
+            'key' => 'site_id',
+            'value' => $site_id,
+            'compare' => '='
+        )
+    );
+}
+
+// remove if current user is manager
+if($isManager) {
+	unset($args['author']);
+}
+
+$the_query  = new WP_Query( $args );	
+if($the_query->post_count > 0) {
+	$total = 0;
+	foreach($the_query->posts as $post) {
+		$amount = get_post_meta($post->ID,'themeum_investment_amount',true);
+		$amount = floatval($amount);
+		$total += $amount;
+	}
+}
+restore_current_blog();
+	/*echo "<pre>";
+	print_r($the_query);*/
+	return floatval($total);
+}
+
+add_filter( 'views_edit-investment', 'meta_views_investment_pending', 10, 1 );
+
+function meta_views_investment_pending( $views ) 
+{
+    //$views['separator'] = '|';
+    $views['metakey'] = '<a href="edit.php?meta_data=themeum_payment_method&post_type=investment">All Bank Transfers</a>';
+    return $views;
+}
+
+add_action( 'load-edit.php', 'load_bank_transfers_only' );
+
+function load_bank_transfers_only()
+{
+    global $typenow;
+
+    // Adjust the Post Type
+    if( 'investment' != $typenow )
+        return;
+
+    add_filter( 'posts_where' , 'load_bank_transfers_only_posts_where' );
+}
+
+function load_bank_transfers_only_posts_where( $where ) 
+{
+    global $wpdb;       
+    if ( isset( $_GET[ 'meta_data' ] ) && !empty( $_GET[ 'meta_data' ] ) ) 
+    {
+        $meta = esc_sql( $_GET['meta_data'] );
+        $where .= " AND ID IN (SELECT post_id FROM $wpdb->postmeta WHERE meta_key='$meta' AND meta_value='bank' )";
+    }
+	
+    return $where;
+}
+
+
+// show all pending bank transfers 
+add_filter( 'views_edit-investment', 'meta_views_investment_pending_bank', 10, 1 );
+function meta_views_investment_pending_bank( $views ) 
+{
+    //$views['separator'] = '|';
+    $views['metakey_pending'] = '<a href="edit.php?meta_data_pending=themeum_status_all&post_type=investment">Pending Bank Transfers</a>';
+    return $views;
+}
+
+add_action( 'load-edit.php', 'load_pending_bank_transfers_only' );
+
+function load_pending_bank_transfers_only()
+{
+    global $typenow;
+
+    // Adjust the Post Type
+    if( 'investment' != $typenow )
+        return;
+
+    add_filter( 'posts_where' , 'load_pending_bank_transfers_only_posts_where' );
+}
+
+function load_pending_bank_transfers_only_posts_where( $where ) 
+{
+    global $wpdb;       
+    if ( isset( $_GET[ 'meta_data_pending' ] ) && !empty( $_GET[ 'meta_data_pending' ] ) ) 
+    {
+        $meta = esc_sql( $_GET['meta_data_pending'] );
+        $where .= " AND ID IN (SELECT post_id FROM $wpdb->postmeta WHERE meta_key='$meta' AND meta_value='pending' ) AND ID IN (SELECT post_id FROM $wpdb->postmeta WHERE meta_key='themeum_payment_method' AND meta_value='bank' )";
+    }
+	
+    return $where;
+}
+
+
+/*add_action( 'pending_to_publish', function( $post ){
+	// your code
+	if($post->post_type != 'investment') return;
+	
+	update_post_meta($post->ID,'themeum_status_all','complete');
+} );
+
+add_action( 'publish_to_pending', function( $post ){
+	// your code
+	if($post->post_type != 'investment') return;
+	
+	update_post_meta($post->ID,'themeum_status_all','pending');
+} );*/
+
+add_action('transition_post_status','post_status_change_on_investment',10,3);
+ function post_status_change_on_investment($new_status,$old_status,$post){
+  if($post->post_type != 'investment') return;
+  
+  if($new_status == 'publish') {
+	update_post_meta($post->ID,'themeum_status_all','complete');
+	$site = get_post_meta($post->ID,'site_id',true);
+	//send email to user regarding its confirmation 
+	$uid = get_post_meta($post->ID,'themeum_investor_user_id',true);
+	global $switched;
+	switch_to_blog($site);
+	$user = get_userdata($uid);
+	$siteURL = home_url();
+	emailUserOnPendingInvestmentConfirmation($post,$user,$siteURL);
+	restore_current_blog();
+  }else if($new_status == 'received') {
+	update_post_meta($post->ID,'themeum_status_all','received'); 
+  }else if($new_status == 'cancelled') {
+	update_post_meta($post->ID,'themeum_status_all','cancelled'); 
+  }else{
+	update_post_meta($post->ID,'themeum_status_all','pending');   
+  }
+ }
+
+function emailUserOnPendingInvestmentConfirmation($investment,$holder, $siteURL = null) {
+	restore_current_blog();
+	global $switched;
+	switch_to_blog(1);
+	$companyID = get_post_meta($investment->ID,'themeum_investment_project_id',true);
+	$siteID = get_post_meta($investment->ID,'site_id',true);
+	$blog_details = get_blog_details( $siteID );
+	$siteName = $blog_details->blogname;
+	$uMetas = get_user_meta($holder->ID);
+	$companyName = get_the_title($companyID);
+	$subject = "Your funds have been received.";
+	$message = "Good afternoon ".$uMetas['billing_first_name'][0]." ".$uMetas['billing_last_name'][0].",<br/><br/> I hope this email finds you well. <br/><br/>Your funds have been received and your certificate will be issued shortly.<br/><br/>For any questions or queries please do not hesitate to contact us on the details below.<br/><br/>";
+	$message .= "Kind Regards<br/>".$siteName." Team";
+
+	$body = $message; //getEmailBody($subject,$message);
+	restore_current_blog();
+	$headers = array('Content-Type: text/html; charset=UTF-8');
+	global $switched;
+	switch_to_blog($siteID);
+	wp_mail($holder->data->user_email, $subject, $body,$headers);
+	restore_current_blog();
+	
+} 
+ 
+ 
+add_action( 'wp_ajax_nopriv_project_section_settings', 'project_section_settings' );
+add_action( 'wp_ajax_project_section_settings', 'project_section_settings' );
+function project_section_settings() {
+		restore_current_blog();
+	$isManager = isManager();
+	global $switched;
+   switch_to_blog(1);
+	$ret = array('status'=>'false');
+	if($isManager) {
+		if( (int) $_POST['pid'] > 0) {
+			$value = esc_attr($_POST['value']);
+			$old = get_post_meta($_POST['pid'],'sections_to_hide',true);
+			if($old != '') {
+				if(esc_attr($_POST['checked']) == 'yes') {	
+						$old[] = $value;
+						$newArray = array_unique($old);
+				}else{
+					if (($key = array_search($value, $old)) !== false) {
+						unset($old[$key]);
+					}
+					$newArray = $old;
+				}
+			}else{
+				$newArray = array($value);
+			}
+			update_post_meta($_POST['pid'],'sections_to_hide',$newArray);
+			
+			$ret['status'] = 'true';
+			restore_current_blog();
+			echo json_encode($ret);die();	
+		}
+	}
+	restore_current_blog();
+	echo json_encode($ret);die();	
+} 
+
+add_action( 'wp_ajax_nopriv_project_set_order', 'project_set_order' );
+add_action( 'wp_ajax_project_set_order', 'project_set_order' );
+function project_set_order() {
+	restore_current_blog();
+	$siteID = get_current_blog_id();
+	$isManager = isManager();
+	global $switched;
+   switch_to_blog(1);
+	$ret = array('status'=>'false');
+	if($isManager) { // Are you a manager? no??? Naughty!! Go back and be a man-ager
+		parse_str($_POST['items'], $itemsArray);
+		if( count($itemsArray['pid']) > 0) {
+			$order = 1;
+			foreach($itemsArray['pid'] as $pid) {
+				$keyName = 'project_order_'.$siteID;
+				update_post_meta($pid,$keyName,$order);
+				$order++;
+			}
+			$ret['status'] = 'true';
+			restore_current_blog();
+			echo json_encode($ret);die();	
+		}
+	}
+	restore_current_blog();
+	echo json_encode($ret);die();	
+}
+
+add_action('add_meta_boxes','tm_metaBoxes');
+add_action('save_post','tm_save_Posts',10,3); 
+function tm_metaBoxes(){
+add_meta_box('tm_one_meta_Box', 'Team Members', 'tm_teammembers','project','normal','high' );
+add_meta_box('user_info_investment_meta_box', 'User Info', 'tm_userinfo_investment','investment','normal','high' );
+}
+
+function tm_teammembers() {
+	global $wpdb;
+    global $post;
+	
+	$pSiteId = get_post_meta($post->ID, 'thm_site_id', true);
+	$teamMembers = get_post_meta($post->ID, 'thm_team_members', true);
+    $teamMembers = unserialize($teamMembers);
+	if($teamMembers && count($teamMembers) > 0) {
+		//echo "<ul class='team_members'>";
+		foreach($teamMembers as $key => $member){ ?>
+		
+				<?php 
+				$mem_image = '';
+				if($member['image'] > 0) {
+					switch_to_blog($pSiteId);
+					$mem_image = wp_get_attachment_image_src($member['image'], 'project-thumb'); 
+					restore_current_blog();
+				}
+				?>
+				
+			<div class='team-fields-wrapper' id='<?php echo $key ?>'>
+			   <span class='remove-team-member' data-order='<?php echo $key ?>' style='cursor: pointer;' >Remove</span>
+				<fieldset>
+					<div class='team-field form-group'>
+						<label>Title</label>
+						<input type="text" name="team_member_title[<?php echo $key ?>]" id='team_member_title<?php echo $key ?>' value="<?php echo $member['title'] ?>" />
+					</div>
+					<div class='team-field form-group'>
+						<label>Name</label>
+						<input type="text" name="team_member_name[<?php echo $key ?>]" id='team_member_name<?php echo $key ?>' value="<?php echo $member['name'] ?>" />
+					</div>
+					<div class='team-field form-group'>
+						<label>Image</label>
+						<input type="file" name="team_member_file[<?php echo $key ?>]" id='team_member_file<?php echo $key ?>' />
+						<input type="hidden" name="t_f_id_<?php echo $key ?>" value="<?php echo $member['image'] ?>" />
+						<?php if($mem_image != '') { ?>
+						<div id="img_previw_<?php echo $key ?>"><img src="<?php echo $mem_image[0] ?>" /></div>
+						<?php } ?>
+					</div>
+					<div class='team-field form-group'>
+						<label>Bio</label>
+						<input type="text" name="team_member_bio[<?php echo $key ?>]" id='team_member_bio<?php echo $key ?>' value="<?php echo $member['bio'] ?>" />
+					</div>
+				</fieldset>
+			</div>
+		<?php } ?>
+		
+		<?php 
+	}else{
+		echo "No Team Members found!";
+	}
+	?>
+	<input type="hidden" id="team_order_key" name="team_order_key" value="<?php echo ($key >= 1) ? ++$key : 1 ?>" />
+	<div class="form-group" id="team_section"> 
+		<div id="team_fields_section"></div>
+		<a href="javascript:void(0)" id="add_team_fields">Add Member</a>
+	</div>
+<script id="team_fields" type="text/template">
+	<div class='team-fields-wrapper' id='{{order_number}}'>
+	   <span class='remove-team-member' data-order='{{order_number}}' style='cursor: pointer;' >Remove</span>
+		<fieldset>
+			<div class='team-field form-group'>
+				<label>Title</label>
+				<input type="text" name="team_member_title[{{order_number}}]" id='team_member_title{{order_number}}' />
+			</div>
+			<div class='team-field form-group'>
+				<label>Name</label>
+				<input type="text" name="team_member_name[{{order_number}}]" id='team_member_name{{order_number}}'/>
+			</div>
+			<div class='team-field form-group'>
+				<label>Image</label>
+				<input type="file" name="team_member_file[{{order_number}}]" id='team_member_file{{order_number}}'/>
+			</div>
+			<div class='team-field form-group'>
+				<label>Bio</label>
+				<input type="text" name="team_member_bio[{{order_number}}]" id='team_member_bio{{order_number}}'/>
+			</div>
+		</fieldset>
+	</div>
+</script>
+<script type="text/javascript">
+team_order = jQuery("#team_order_key").val();
+	jQuery(function($){
+		$('#team_section').on('click','#add_team_fields',function(){
+			var teamFieldsHtml = $('#team_fields').html();
+			teamFieldsHtml = teamFieldsHtml.replace(/{{order_number}}/g, team_order);
+			$('#team_fields_section').append(teamFieldsHtml);
+			team_order++;
+		});
+
+		// remove team member
+		$('#team_section, .team-fields-wrapper').on('click','.remove-team-member',function(){
+			if(confirm('Are you sure?')) {
+				var orderNo = $(this).attr('data-order');
+				$('#'+orderNo).remove();
+			}
+		});
+		
+	});
+</script>	
+	
+<?php } 
+
+function tm_save_Posts($post_id,$post,$update){
+	global $pagenow;
+	if ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE && !is_admin()) {
+        return $post_id; 
+    }
+	$cSite = get_current_blog_id();
+	if($post->post_type != 'project') {
+		return $post_id;
+	}		
+	
+	if($pagenow != 'post.php') {
+		return $post_id;
+	}
+	
+	if(isset($_FILES['team_member_file']) && count($_FILES['team_member_file']['name']) > 0) {
+		foreach($_FILES['team_member_file']['name'] as $k => $f) {
+			$fK = 'team_member_file_'.$k;	
+			$_FILES[$fK]['name'] = $_FILES['team_member_file']['name'][$k];
+			$_FILES[$fK]['type'] = $_FILES['team_member_file']['type'][$k];
+			$_FILES[$fK]['tmp_name'] = $_FILES['team_member_file']['tmp_name'][$k];
+			$_FILES[$fK]['error'] = $_FILES['team_member_file']['error'][$k];
+			$_FILES[$fK]['size'] = $_FILES['team_member_file']['size'][$k];
+		}			
+	}
+	$teamOutput = [];
+	/*echo "<pre>";
+	echo $post_id;
+	print_r($_FILES);
+	echo "</pre>";exit;*/
+	if(isset($_POST['team_member_name'])) {
+		foreach($_POST['team_member_name'] as $orderKey => $value) {
+			$f_id_key = 't_f_id_'.$orderKey;
+			$file_id = isset($_POST[$f_id_key]) ? $_POST[$f_id_key] : 0; // setting default file id
+			// upload file to wp directory and get the file id
+			$fUploadName = 'team_member_file_'.$orderKey;
+			switch_to_blog($cSite);
+			if(isset($_FILES[$fUploadName]) && $_FILES[$fUploadName]['error'] === 0) {
+				$file_id = media_handle_upload( $fUploadName, 0 );
+			}
+			restore_current_blog();
+			$teamOutput[$orderKey] = array(
+				'title' => isset($_POST['team_member_title'][$orderKey]) ? $_POST['team_member_title'][$orderKey] : '',
+				'name' => isset($_POST['team_member_name'][$orderKey]) ? $_POST['team_member_name'][$orderKey] : '',
+				'bio' => isset($_POST['team_member_bio'][$orderKey]) ? $_POST['team_member_bio'][$orderKey] : '',
+				'image' => $file_id
+			);
+		}
+	}
+	$teamMembers = serialize($teamOutput);
+	restore_current_blog();
+	switch_to_blog(1);
+	//delete_post_meta($post_id,'thm_team_members');
+	update_post_meta((int)$post_id, 'thm_team_members', (string)$teamMembers);
+	restore_current_blog();
+	
+ }
+ 
+ function getSharePrice($companyID,$format = 'pence', $withSign = true){
+	$sharePrice = get_post_meta($companyID,'thm_share_price',true); 
+	if($sharePrice != '') {
+		$sharePrice = floatval(preg_replace('/[^\d.]/', '', $sharePrice));
+		if($format != 'pence') {
+			if($sharePrice >= 100) {
+				$n = $sharePrice/100;
+				$sharePrice = number_format($n, 2, '.', '');
+				if($withSign === true) {
+					$sharePrice = '£'.$sharePrice;
+				}				
+			}else{
+				if($withSign === true) {
+					$sharePrice = $sharePrice.' pence';
+				}
+			}
+		}
+	}
+	return $sharePrice;
+ }
+ 
+ function convertStringToNumbers($number){
+	 return floatval(preg_replace('/[^\d.]/', '', $number));
+ }
+ 
+ function emailSubscribersOnNews($companyId,$newsItem) {
+	restore_current_blog();
+	$homeURL = home_url();	
+	global $switched;
+	switch_to_blog(1);
+	$pURL = getProjectURL($companyId,$homeURL);
+	$companyName = get_the_title($companyId);
+	$subject = "Latest Update: ".$companyName;
+	$message = "An update has been posted by $companyName<br/><br/>";
+	$message .= $newsItem['title'] ."<br/><br/>";
+	$message .= "To read full update : <a href='".$pURL."'>click here</a><br/><br/>";
+	$message .= "Best Wishes<br/>The Right Crowd";
+
+	$body = $message; //getEmailBody($subject,$message);
+
+	$shareholders = getProjectInvestors($companyId);
+	$headers = array('Content-Type: text/html; charset=UTF-8');
+	if(count($shareholders)) {
+		foreach($shareholders as $sh) {
+			$holder = get_userdata($sh);
+			//$subject = $subject." : ".$holder->user_email;
+			wp_mail($holder->user_email, $subject, $body,$headers);
+		}	
+	}
+}
+
+function wp_send_email_on_new_company_publish($args = array()) {
+			
+		  if(isset($args['to']) && $args['to'] != '' && filter_var($args['to'],FILTER_VALIDATE_EMAIL)) {
+		  	       $subject = "Congratulations! Your company is now live on TRX";    
+
+			  $message  = "<p>Congratulations your company is now live with TRX, please remember to update your news section on the site on a regular basis so you keep your shareholders up-to-date.</p>";
+			  $message .= "<p>We would like to remind you of our premium package at just £29 per month you can reach our large and expanding client base.</p>";
+			  //$message .= "<p><a href='https://therightx.com?add-to-cart=15475' class='btn confirm-package-btn'>Confirm and Activate Subscription</a></p>";
+	  		  $message .= "<p>If you have any questions, please email us at admin@therightx.com</p>";
+	  		  $message .= "Best Wishes<br/>The TRXperts";
+	  		  
+  	  		  $body = getEmailBody($subject,$message);
+			  
+	  		  $headers = array('Content-Type: text/html; charset=UTF-8');
+		     //wp_mail($args['to'], $subject, $body, $headers);
+		  }	
+}
+
+add_action( 'transition_post_status', 'onCompanyPublished', 10, 3 );
+function onCompanyPublished( $new_status, $old_status, $post )
+{
+    if ( 'project' !== $post->post_type )
+        return; // restrict the filter to a specific post type
+
+	 if ( 'publish' !== $new_status or 'publish' === $old_status )
+        return;
+    
+	restore_current_blog();
+	//$siteID = get_current_blog_id();
+	//switch_to_blog($siteID);
+    //$userDetail = get_userdata($post->post_author);
+	$mailSettings = get_option('woocommerce_wc_new_project_settings');
+	
+	$mailer = WC()->mailer();
+	$mails = $mailer->get_emails();
+	if ( ! empty( $mails ) ) {
+		foreach ( $mails as $mail ) {
+			if ( $mail->id == 'wc_new_project' ) {
+				$mail->subject = $mailSettings['subject'];
+				$mail->recipient = $mailSettings['recipient'];
+			   $mail->trigger( $post->ID );
+			   break;
+			}
+		 }
+	}
+
+	switch_to_blog(1);
+	/*restore_current_blog();
+	$siteid = get_post_meta($post->ID,'thm_site_id',true);
+	restore_current_blog();
+	switch_to_blog($siteid);
+	$subs = get_users( array('role__in' => 'subscriber') );
+	restore_current_blog();
+	foreach($subs as $sub) {
+		$mail->recipient = $sub->user_email;
+		//$mail->subject = "Company '".$post->post_title."' is published.";
+		$mail->trigger( $post->ID );
+	}*/
+    //wp_send_email_on_new_company_publish(array('to'=> $userDetail->user_email));
+}
+
+add_action('wp_footer', 'custom_login_signup_modal_function');
+function custom_login_signup_modal_function(){
+	?>
+	<!-- NINO National Insurance Number check js function -->
+	<script id="nino" type="text/javascript">
+		function checkNINO (toCheck) {
+		  var exp1 = /^[A-CEGHJ-NOPR-TW-Z]{1}[A-CEGHJ-NPR-TW-Z]{1}[0-9]{6}[A-D\s]{1}/i;
+		  var exp2 = /(^GB)|(^BG)|(^NK)|(^KN)|(^TN)|(^NT)|(^ZZ).+/i;
+			
+		  if (toCheck.match(exp1) && !toCheck.match(exp2)) 
+			  return toCheck.toUpperCase() 
+			else
+			  return false;
+		}
+		
+		jQuery("#ni_number").blur(function(e){
+			var ni = jQuery(this).val();
+			if(ni != '') {
+				var formattedNI = checkNINO(ni);
+				if(formattedNI !== false){
+					jQuery(this).val(formattedNI);
+				}else{
+					alert("National Insurance Number has invalid format");
+					setTimeout(function() { jQuery("#ni_number").focus(); }, 100); 
+					e.preventDefault();
+				}			
+			}
+		});
+		var lookedAddresses; // global variable to fill addresses after responses and use in on change event to select field
+		// address lookup ajax to api
+		jQuery("#find_address").click(function(){
+			var pc = jQuery("#address_lookup").val();
+			var api_url = 'https://api.getAddress.io/find/'+pc;
+			jQuery.ajax({
+						url: api_url,
+						type: 'GET',		
+						data: {
+							'api-key': 'pldwkTlAdkq04Es7cGwSnQ22195'
+						}
+			})
+			.done(function(data) {
+				if(data.addresses.length > 0) {
+					lookedAddresses = data.addresses;
+					jQuery('#lookedup_addresses').show();
+					var selField = jQuery('#lookedup_addresses');
+					if(jQuery("#add-not-found-error").length){
+						jQuery("#add-not-found-error").remove();
+					}
+					selField.find('option').remove();
+					selField.append(new Option(data.addresses.length + ' found'), '' );
+					jQuery.each(data.addresses,function(index,item){
+						selField.append(new Option(item, index));
+					});
+					
+				}
+			})
+			.fail(function() {
+				console.log("error");
+				var selField = jQuery('#lookedup_addresses');
+				selField.hide();
+				if(jQuery("#add-not-found-error").length){
+					jQuery("#add-not-found-error").remove();
+				}
+				selField.parent().append("<span class='red-error' id='add-not-found-error'>Addresses not found.</span>");
+			});
+		});
+		
+		// push the address to relevant fields
+		jQuery("#lookedup_addresses").change(function(){
+			var i = jQuery(this).val();
+			if(i != '') {
+				console.log(lookedAddresses[i]);
+				var add = lookedAddresses[i];
+				var addParts = add.split(',');
+				var address1,address2, town, county;
+				county = addParts[addParts.length-1];
+				city = addParts[addParts.length-2];
+				address1 = addParts[0]+', '+addParts[1];
+				address2 = addParts[2]+', '+addParts[3]+', '+addParts[4];
+				var postcode = jQuery("#address_lookup").val();
+				jQuery("#billing_address_1").val(address1);
+				jQuery("#billing_address_2").val(address2);
+				jQuery("#billing_city").val(city);
+				jQuery("#billing_state").val(county);
+				jQuery("#billing_postcode").val(postcode);
+			}
+		});
+		
+		if(jQuery("#fhTable a.download").length){
+			jQuery("#fhTable a.download").each(function(index){
+				var fhLinkHref = jQuery(this).attr("href");
+				var fhNewHref = "https://beta.companieshouse.gov.uk"+fhLinkHref;
+				jQuery(this).attr("href",fhNewHref);
+				if(jQuery(this).parent().next('div').length) {
+					var fhDownloadIXLink = jQuery(this).parent().next('div').find('a');
+					var fhDownLinkHref = fhDownloadIXLink.attr('href');
+					var fhDownNewHref = "https://beta.companieshouse.gov.uk"+fhDownLinkHref;
+					fhDownloadIXLink.attr('href',fhDownNewHref);
+				}
+			});
+			
+		}
+		
+	</script>
+	<style>
+		.custom_field_html  .address_lookup_label {
+			width: 360px;
+		}
+		.custom_field_html  .address_lookup_label button {
+			float:right;
+		}
+		#add-not-found-error {
+			clear: both;
+			display: block;
+			color: #fa0000;
+		}
+		.my-bank-details-dashboard textarea#bank_details {
+			border: 0.1em solid;
+			height: 125px;
+		}
+		.my-bank-details-dashboard #bank-details-btn {
+			margin-top: 0;
+		}
+		
+		#isa_field_set {
+			padding: 15px;
+			border: 1px solid #ccc;
+		}
+		#isa_field_set legend {
+			font-size: 14px;
+			margin-bottom: 0;
+			border-bottom: 0;
+			font-weight: bold;
+			width: auto;
+		}
+	</style>
+	<?php 
+	if(!is_user_logged_in()) {	
+	?>
+	<div id="custom-login-signup-modal" class="modal fade">
+		<div class="modal-dialog modal-md">
+			 <div class="modal-content">
+				 <div class="modal-header">
+					 <i class="fa fa-close close" data-dismiss="modal" id="form-submit-close"></i>
+				 </div>
+				 <div class="modal-body">
+					 <h3><?php _e('Already have an Account?','themeum') ?></h3>
+					 <?php echo do_shortcode('[wppb-login]'); ?>
+					 <p><a href='/forgot-password/'>Forgot Password?</a></p>
+					 <h3><?php _e('Signup for free','themeum') ?></h3>
+					 <?php echo do_shortcode('[wppb-register]'); ?>
+				 </div>
+			 </div>
+		</div>
+	</div>
+	<div id="custom-investortype-modal" class="modal fade">
+		<div class="modal-dialog modal-md">
+			 <div class="modal-content">
+				 <div class="modal-header">
+					 <!--<i class="fa fa-close close" data-dismiss="modal" id="form-submit-close"></i>-->
+				 </div>
+				 <div class="modal-body">
+					 <p>
+						<h4>Legal and regulatory information</h4>
+						<p>The information in this website sets out legal information and regulatory restrictions about investments, which you should read carefully. By continuing to access any page of this website, you agree to be bound by these restrictions. If you do not agree to be bound by them, you must leave the website. We remain not responsible for any misrepresentations you may make in order to gain access to this website.</p>
+						<p></p>
+					 </p>
+					 <p>
+						In order to access this site you must confirm that you fit into one of the 3 categories of investor as set out below.  
+					 </p>
+					 <p>
+						<h4>Restricted Investor</h4>
+						<p>You have not invested (and will not invest) more than 10% of your net assets per year in shares, bonds, fund or other securities that are not listed on a stock exchange. The Financial Conduct Authority refers to ‘Everyday Investors’ as ‘Restricted Investors’.</p>
+					 </p>
+					 <p>
+						<h4>Sophisticated Investor</h4>
+						<p>You have invested in more than one unlisted company, been a director of a company with an annual turnover of at least £1 million, or worked in private equity in the last two years, or you have been a member of a business angels network for at least the last six months.</p>
+					 </p>
+					 <p>
+						<h4>High Net Worth Investor</h4>
+						<p>You earn more than £100,000 per year or hold net assets of at least £250,000.</p>
+					 </p>
+					 <br/>
+					 <p>If you do not fall into any of these categories, then please exit the site. You will upon entering the site be requested to complete a full registration prior to any investment information being accessed.</p>
+					 <p>By proceeding to access any page of this website, you agree, so far as is permitted by law and regulation, to the exclusion of any liability whatsoever for any errors and/or omissions by it and/or any relevant third parties, in respect of its content. The site does not exclude any liability for, or remedy in respect of, fraudulent misrepresentation.</p>
+					 <p>The information set out in this website may be amended without notice to you. If you continue to access this website following any such changes, you will be deemed to have accepted them. This website does not constitute an offer or invitation to invest in any securities.</p>
+					 <p>
+						<h4>Risk factors</h4>
+						<p>
+							Investors should be aware there are risks to investing in securities of any company, especially if they are private companies not listed on a Recognised Investment Exchange, and there may be little or no opportunity to sell the securities easily should you need to do so. The value of your Investments can go down as well as up and therefore you may not recover some, or in extreme cases, any of the value of your initial investment. <a href="/terms-conditions/risk-warning/">Risk warning</a>
+						</p>
+						<p>If you are still unsure, seek the advice of a regulated financial adviser. Investments in these securities are NOT covered by the Financial Services Compensation Scheme (FSCS) nor would you have access to the Financial Ombudsman Service (FOS).</p>
+					 </p>
+					 <p>
+						<h4>Contents of this website</h4>
+						<p>This website is published solely for the purpose of receiving information. Please see full details <a href="/terms-conditions/membership-terms-conditions/">here</a></p>
+					 </p>
+					 <p>
+						<h4>Data protection</h4>
+						<p>The information which you provide to the site will be stored electronically but will not be used for marketing purposes and will not be shared with any third parties. Please see full details <a href="/terms-conditions/privacy-policy/">here</a></p>
+					 </p>
+					 <p>
+						<button name="investor_everyday" id="investor_everyday" class="btn investor_type_button" value="Restricted Investor">Restricted</button>
+						<button name="investor_sophisticated" id="investor_sophisticated" class="btn investor_type_button" value="Sophisticated Investor">Sophisticated</button>
+						<button name="investor_highnet" id="investor_highnet" class="btn investor_type_button" value="High Net Worth Investor">High Net Worth</button>
+					 </p>
+				 </div>
+			 </div>
+		</div>
+	</div>
+	<?php
+	}else{ ?>
+		<div id="bank-transfer-popup-modal" class="modal fade">
+			<div class="modal-dialog modal-md">
+				 <div class="modal-content">
+					 <div class="modal-header">
+						 <i class="fa fa-close close" data-dismiss="modal" id="form-submit-close"></i>
+					 </div>
+					 <div class="modal-body bank-transfer-body" id="bank-transfer-modal-body">
+						 <h3><?php _e('Further Details','themeum') ?></h3>
+						 <!--<p>
+							Bank transfers to be made to:
+							<ul>
+							Acc Number: 00003992<br/>
+							Sort Code: 04-05-41<br/>
+								<!--<li><span>Name:</span> <span>Right Crowd Ltd</span></li>-->
+								<!--<li><span>Acc Number:</span> <span>00003992</span></li>
+								<li><span>Sort Code:</span> <span>04-05-41</span></li>
+								<li><span>Ref:</span> <span id="bank_transfer_reference">TRC2019'.$user_id.'</span></li>
+							</ul>
+						 </p>-->
+						 <p>
+							<!--Banking details will be sent to you via email to complete your investment.-->
+							Further Instructions will be sent to you via email to complete your investment.
+						 </p>
+					 </div>
+				 </div>
+			</div>
+		</div>
+		<?php if(is_page('thank-you')) { ?>
+		<div id="custom-thankyou-message-modal" class="modal fade">
+			<div class="modal-dialog modal-md">
+				 <div class="modal-content">
+					 <div class="modal-header">
+						 <i class="fa fa-close close" data-dismiss="modal" id="close-form-submit-close"></i>
+					 </div>
+					 <div class="modal-body">
+						<p>The Companies minimum effective target to implement their business plan has not been met, your investments will be held for a short period until the target has been reached at which point you will receive confirmation of your investment.</p>
+					 </div>
+				 </div>
+			</div>
+		</div>
+			
+		<?php } ?>
+	<?php }
+}
+
+add_filter( 'admin_post_thumbnail_html', 'adminPostThumbnailHTML', 10, 3 );
+function adminPostThumbnailHTML( $content, $post_id, $thumbnail_id ) 
+{
+    $_wp_additional_image_sizes = wp_get_additional_image_sizes();
+
+	$post = get_post( $post_id );
+	
+	if($post->post_type != 'project') {
+		return $content;
+	}
+	
+	$post_type_object   = get_post_type_object( $post->post_type );
+	$set_thumbnail_link = '<p class="hide-if-no-js"><a href="%s" id="set-post-thumbnail"%s class="thickbox">%s</a></p>';
+	$upload_iframe_src  = get_upload_iframe_src( 'image', $post->ID );
+
+	/*$content = sprintf( $set_thumbnail_link,
+		esc_url( $upload_iframe_src ),
+		'', // Empty when there's no featured image set, `aria-describedby` attribute otherwise.
+		esc_html( $post_type_object->labels->set_featured_image )
+	);*/
+	$content = '<p class="hide-if-no-js">'.esc_html( $post_type_object->labels->set_featured_image ).'</p>';
+	
+	if ( $thumbnail_id) {
+		$size = isset( $_wp_additional_image_sizes['post-thumbnail'] ) ? 'post-thumbnail' : array( 266, 266 );
+
+		/**
+		 * Filters the size used to display the post thumbnail image in the 'Featured Image' meta box.
+		 *
+		 * Note: When a theme adds 'post-thumbnail' support, a special 'post-thumbnail'
+		 * image size is registered, which differs from the 'thumbnail' image size
+		 * managed via the Settings > Media screen. See the `$size` parameter description
+		 * for more information on default values.
+		 *
+		 * @since 4.4.0
+		 *
+		 * @param string|array $size         Post thumbnail image size to display in the meta box. Accepts any valid
+		 *                                   image size, or an array of width and height values in pixels (in that order).
+		 *                                   If the 'post-thumbnail' size is set, default is 'post-thumbnail'. Otherwise,
+		 *                                   default is an array with 266 as both the height and width values.
+		 * @param int          $thumbnail_id Post thumbnail attachment ID.
+		 * @param WP_Post      $post         The post object associated with the thumbnail.
+		 */
+		$size = apply_filters( 'admin_post_thumbnail_size', $size, $thumbnail_id, $post );
+		$siteID = get_post_meta($post_id,'thm_site_id',true);
+		switch_to_blog($siteID);
+		$thumbnail_html = wp_get_attachment_image( $thumbnail_id, $size );
+		restore_current_blog();
+		switch_to_blog(1);
+		if ( ! empty( $thumbnail_html ) ) {
+			/*$content = sprintf( $set_thumbnail_link,
+				esc_url( $upload_iframe_src ),
+				' aria-describedby="set-post-thumbnail-desc"',
+				$thumbnail_html
+			);*/
+			$content = $thumbnail_html;
+			//$content .= '<p class="hide-if-no-js howto" id="set-post-thumbnail-desc">' . __( 'Click the image to edit or update' ) . '</p>';
+			$content .= '<p class="hide-if-no-js"><a href="#" id="remove-post-thumbnail">' . esc_html( $post_type_object->labels->remove_featured_image ) . '</a></p>';
+		}
+	}
+
+	$content .= '<input type="hidden" id="_thumbnail_id" name="_thumbnail_id" value="' . esc_attr( $thumbnail_id ? $thumbnail_id : '-1' ) . '" />';
+	
+	return $content;
+}
+
+add_action('wp_footer', 'thankYouPageModal');
+function thankYouPageModal(){
+		if(is_page('thank-you') && isset($_GET['pid']) && $_GET['pid'] == '5040') { 
+		//wp_enqueue_script( 'modal', 'https://cdnjs.cloudflare.com/ajax/libs/bootstrap-modal/2.2.6/js/bootstrap-modal.min.js', array(), null, true );
+		?>
+					<script type="text/javascript">
+						jQuery(document).ready(function(){ 'use strict';
+							//console.log(jQuery("#custom-thankyou-message-modal"));
+							jQuery("#custom-thankyou-message-modal").addClass('in');
+							jQuery("#custom-thankyou-message-modal .modal-backdrop").addClass('in');
+							jQuery("#custom-thankyou-message-modal").show();
+							jQuery("#custom-thankyou-message-modal").modal();
+						});
+					</script>
+			<?php }	
+}
+
+add_action('wp_footer', 'investorTypeModal');
+function investorTypeModal(){
+	restore_current_blog();
+	restore_current_blog();
+	restore_current_blog();
+	restore_current_blog();
+	restore_current_blog();
+	restore_current_blog();
+	//unset ( $GLOBALS['_wp_switched_stack'] );
+	$currentSiteID = get_current_blog_id();
+	$cookieName = 'investor_type';
+	
+	if($currentSiteID !== 1){
+		if(!isset($_COOKIE[$cookieName])){
+		?>
+			<script type="text/javascript">
+							jQuery(document).ready(function(){ 'use strict';
+								jQuery("#custom-investortype-modal").addClass('in');
+								jQuery("#custom-investortype-modal .modal-backdrop").addClass('in');
+								jQuery("#custom-investortype-modal").show();
+								jQuery("#custom-investortype-modal").modal({
+									backdrop: 'static',
+									keyboard: false
+								});
+							});
+						</script>
+		<?php
+		}
+	}
+	?>
+	<script>
+		jQuery(function($){
+			
+			$('.investor_type_button').click(function(){
+				var v = $(this).val();
+				var cookieName = 'investor_type';
+				var date = new Date();
+				  date.setTime(date.getTime()+(30*24*60*60*1000));
+				  document.cookie = cookieName + "=" + v + "; expires=" + date.toGMTString();
+				  jQuery("#custom-investortype-modal").modal('hide');
+			});
+		});
+	</script>
+	<?php
+}
+ 
+if(is_page('opportunities')) { 
+	function sort_by_custom_order_value( $query ) {
+		if ( is_admin() || ! $query->is_main_query() ) {
+			return;
+		}
+		$currentSiteID = get_current_blog_id();
+		$metaKeyOrder = 'project_order_'.$currentSiteID;
+		
+		$query->set( 'meta_key', $metaKeyOrder );
+		$query->set( 'orderby', array( 'meta_value_num' => 'ASC' ) );
+
+		add_filter( 'get_meta_sql', 'filter_get_meta_sql_for_custom_order' );
+	}
+	add_action( 'pre_get_posts', 'sort_by_custom_order_value' );
+
+	function filter_get_meta_sql_for_custom_order( $clauses ) {
+		remove_filter( 'get_meta_sql', 'filter_get_meta_sql_for_custom_order' );
+
+		// Change the inner join to a left join,
+		// and change the where so it is applied to the join, not the results of the query.
+		$clauses['join']  = str_replace( 'INNER JOIN', 'LEFT JOIN', $clauses['join'] ) . $clauses['where'];
+		$clauses['where'] = '';
+
+		return $clauses;
+	} 
+}
+
+// Show share purchase history in user profiles
+add_action( 'show_user_profile', 'add_customer_logs',3,1);
+add_action( 'edit_user_profile', 'add_customer_logs',3,1);
+
+function add_customer_logs($user){
+
+	$html = '<div class="col-sm-12">';//myshares-row
+		$html .= '<div class="yith-wcmbs-admin-profile-membership-table in-admin wpneo-clearfix logs-list">'; 
+        $html .= '<h3>'.__( "Logs" , "wp-crowdfunding" ).'</h3>';
+        include_once WPNEO_CROWDFUNDING_DIR_PATH.'includes/woocommerce/dashboard/email-logs.php';
+    	$html .= '</div>';//wpneo-shadow 
+	$html .= '</div>';//myshares-row
+	
+	$html .= '<div class="col-sm-12">';//myshares-row
+		$html .= '<div class="yith-wcmbs-admin-profile-membership-table in-admin wpneo-clearfix user-investments">'; 
+        $html .= '<h3>'.__( "My Investments" , "wp-crowdfunding" ).'</h3>';
+        include_once WPNEO_CROWDFUNDING_DIR_PATH.'includes/woocommerce/dashboard/user-investments.php';
+		
+    	$html .= '</div>';//wpneo-shadow 
+	$html .= '</div>';//myshares-row
+	
+	echo $html;
+}
+
+add_filter('wppb_send_credentials_checkbox_logic','custom_send_credentials_logic_signup',10,3);
+function custom_send_credentials_logic_signup($content,$requestData,$form){
+	//$field = '<li class="wppb-form-field wppb-send-credentials-checkbox"><label for="send_credentials_via_email"><input id="send_credentials_via_email" type="checkbox" name="send_credentials_via_email" value="sending"'.( ( isset( $request_data['send_credentials_via_email'] ) && ( $request_data['send_credentials_via_email'] == 'sending' ) ) ? ' checked' : '' ).'/>'.__( 'Send these credentials via email.', 'profile-builder').'</label></li>';
+	$content = '<input type="hidden" name="send_credentials_via_email" value="sending" />';
+	return $content;
+}
+
+add_action('pre_get_posts','users_own_attachments',999,1);
+function users_own_attachments( $wp_query_obj ) {
+
+    global $current_user, $pagenow;
+	if(!is_admin()) {
+		return;
+	}
+    $is_attachment_request = ($wp_query_obj->get('post_type')=='attachment');
+
+    if( !$is_attachment_request )
+        return;
+
+    if( !in_array( $pagenow, array( 'upload.php', 'admin-ajax.php' ) ) )
+        return;
+
+	
+    if( current_user_can('delete_pages') ) {
+	   unset($wp_query_obj->query_vars['author']);
+	}
+	
+	
+    return $wp_query_obj;
+}
+
+function gd_modify_user_table( $column ) {
+    $column['referred_by'] = 'Referred By';
+	$column['proofs'] = 'Proof Documents';
+	$column['ni_number'] = 'NI Number';
+    return $column;
+}
+add_filter( 'manage_users_columns', 'gd_modify_user_table' );
+
+function gd_modify_user_table_row( $val, $column_name, $user_id ) {
+    switch ($column_name) {
+        case 'referred_by' :
+            $ref = get_user_meta( $user_id, 'referralcode', true );
+			if($ref != '') {
+				return $ref;
+			}else{
+				return "-";	
+			}
+		case 'proofs' :
+            $IdProof = get_user_meta($user_id,'idproof',true); 
+			$AddressProof = get_user_meta($user_id,'addressproof',true); 
+			$proofs = '';
+			if($IdProof > 0) {
+				$IdProofPost = get_post($IdProof);
+				$proofs .= 'ID: <a href="'.$IdProofPost->guid.'" target="_blank">'.$IdProofPost->post_title.'</a><br/>';
+			}
+			if($AddressProof > 0) {
+				$AddressProofPost = get_post($AddressProof);
+				$proofs .= 'Address: <a href="'.$AddressProofPost->guid.'" target="_blank">'.$AddressProofPost->post_title.'</a>';
+			}	
+			return $proofs;
+		case 'ni_number' :
+            $niNumber = get_user_meta( $user_id, 'ni_number', true );
+			if($niNumber != '') {
+				return $niNumber;
+			}else{
+				return "-";	
+			}	
+        default:
+    }
+    return $val;
+}
+add_filter( 'manage_users_custom_column', 'gd_modify_user_table_row', 10, 3 );
+
+add_action( 'wp_ajax_nopriv_upload_user_proofs', 'upload_user_proofs' );
+add_action( 'wp_ajax_upload_user_proofs', 'upload_user_proofs' );
+function upload_user_proofs() {
+	$currentSite = get_current_blog_id();
+	$currentUserID = get_current_user_id();
+	$ret = array('status'=>'false');
+		if( isset($_FILES['idproof']) && $_FILES['idproof']['error'] > 0) {
+			$idproof = media_handle_upload( 'idproof', 0 );
+			if($idproof) {
+				update_user_meta($currentUserID,'idproof',$idproof);
+				$ret['idproof'] = $idproof;
+				$ret['status'] = 'true';
+			}
+		}
+		if( isset($_FILES['addressproof']) && $_FILES['addressproof']['error'] > 0) {
+			$addressproof = media_handle_upload( 'addressproof', 0 );
+			if($addressproof) {
+				update_user_meta($currentUserID,'addressproof',$addressproof);
+				$ret['addressproof'] = $addressproof;
+				$ret['status'] = 'true';
+			}
+		}
+		
+		echo json_encode($ret);die();
+}
+
+add_action( 'wp_ajax_nopriv_save_user_bankdetails', 'save_user_bankdetails' );
+add_action( 'wp_ajax_save_user_bankdetails', 'save_user_bankdetails' );
+function save_user_bankdetails() {
+	$currentSite = get_current_blog_id();
+	$currentUserID = get_current_user_id();
+	//echo $currentSite." => ".$currentUserID;exit;
+	$ret = array('status'=>'false');
+		if( isset($_POST['bankdetails']) && $_POST['bankdetails'] !== '') {
+			$bankdetails = esc_attr($_POST['bankdetails']);
+			$coupon_interval = esc_attr($_POST['coupon_interval']);
+			update_user_meta($currentUserID, 'bank_details', $bankdetails);
+			update_user_meta($currentUserID, 'user_coupon_interval', $coupon_interval);
+			$ret['status'] = 'true';
+		}
+		
+		echo json_encode($ret);die();
+}
+
+// adding custom statuses for investment 
+register_post_status( 'cancelled', array(
+		/* WordPress built in arguments. */
+		'label'                       => __( 'Cancelled', 'wp-statuses' ),
+		'label_count'                 => _n_noop( 'Cancelled <span class="count">(%s)</span>', 'Cancelled <span class="count">(%s)</span>', 'wp-statuses' ),
+		'public'                      => false,
+		'show_in_admin_all_list'      => false,
+		'show_in_admin_status_list'   => true,
+
+		/* WP Statuses specific arguments. */
+		'post_type'                   => array( 'investment' ), // Only for posts!
+		'show_in_metabox_dropdown'    => true,
+		'show_in_inline_dropdown'     => true,
+		'show_in_press_this_dropdown' => true,
+		'labels'                      => array(
+			'metabox_dropdown' => __( 'Cancelled',        'wp-statuses' ),
+			'inline_dropdown'  => __( 'Cancelled',        'wp-statuses' ),
+		),
+		'dashicon'                    => 'dashicons-cancelled',
+	) );
+	
+register_post_status( 'received', array(
+		/* WordPress built in arguments. */
+		'label'                       => __( 'Funds Received', 'wp-statuses' ),
+		'label_count'                 => _n_noop( 'Funds Received <span class="count">(%s)</span>', 'Funds Received <span class="count">(%s)</span>', 'wp-statuses' ),
+		'public'                      => false,
+		'show_in_admin_all_list'      => false,
+		'show_in_admin_status_list'   => true,
+
+		/* WP Statuses specific arguments. */
+		'post_type'                   => array( 'investment' ), // Only for posts!
+		'show_in_metabox_dropdown'    => true,
+		'show_in_inline_dropdown'     => true,
+		'show_in_press_this_dropdown' => true,
+		'labels'                      => array(
+			'metabox_dropdown' => __( 'Funds Received',        'wp-statuses' ),
+			'inline_dropdown'  => __( 'Funds Received',        'wp-statuses' ),
+		),
+		'dashicon'                    => 'dashicons-received',
+	) );	
+	
+
+function getUserInvestments($user_id = NULL,$amountOnly = false) {
+	if($user_id === NULL) {
+		$user_id = get_current_user_id();
+	}
+	$site_id = get_current_blog_id();
+	switch_to_blog(1);
+	$args = array(
+    'post_type' => 'investment',
+    'author'    => $user_id,
+    'post_status'    => array('publish','pending','received','cancelled'),
+	'meta_key'          => 'themeum_investment_date',
+	  'orderby'           => 'meta_value',
+	  'order'             => 'DESC',
+		'meta_query' => array(
+			array(
+				'key' => 'site_id',
+				'value' => $site_id,
+				'compare' => '='
+			)
+		),
+		'posts_per_page'    => -1
+	);
+	$investments = get_posts( $args );
+	if($amountOnly === true) {
+		$totalAmount = 0;
+		if(count($investments) > 0) {
+			foreach($investments as $invest) {
+				$info = getInvestmentInfo($invest->ID);
+				$totalAmount += $info['investment_amount'];
+			}
+		}
+		restore_current_blog();
+		return $totalAmount;
+	}
+	if(count($investments) > 0) {
+		restore_current_blog();
+		return $investments;
+	}
+	restore_current_blog();
+	return false;
+}	
+
+add_action( 'wp_ajax_nopriv_cancel_investment', 'cancel_investment' );
+add_action( 'wp_ajax_cancel_investment', 'cancel_investment' );
+function cancel_investment() {
+		restore_current_blog();
+		$user_id = get_current_user_id();
+	global $switched;
+   switch_to_blog(1);
+	$ret = array('status'=>'false');
+	if($user_id > 0) {
+		if( (int) $_POST['invest_id'] > 0) {
+			wp_update_post(array(
+		     'ID'    =>  $_POST['invest_id'],
+		     'post_status'   =>  'cancelled'
+		     ));	
+		}
+		update_post_meta($_POST['invest_id'],'themeum_status_all','cancelled');
+		$ret['status'] = 'true';
+		restore_current_blog();
+		echo json_encode($ret);die();	
+	}
+	restore_current_blog();
+	echo json_encode($ret);die();	
+}
+
+
+// custom menu item in admin panel for approving products to display 
+function products_approval_admin_menu() {
+	$cSite = get_current_blog_id();
+		if($cSite == 1) {
+			add_menu_page(
+		__( 'Products Approval Queue', 'custom_gd_lang' ),
+		__( 'Products Approval Queue', 'custom_gd_lang' ),
+		'manage_options',
+		'products_approval_queue',
+		'admin_products_approval_queue',
+		'dashicons-schedule',
+		3
+	);
+		}
+	
+}
+
+add_action( 'admin_menu', 'products_approval_admin_menu' );
+
+function admin_products_approval_queue() {
+		$cSite = get_current_blog_id();
+		if($cSite != 1) {
+			return;
+		}
+		?>
+		<div class="approval_queue_container">
+			<h1>
+				<?php esc_html_e( 'Approval/Disapproval of Products Display', 'my-plugin-textdomain' ); ?>
+			</h1>
+		<?php
+		$allSites = get_sites();
+	
+		foreach($allSites as $site) {
+			if($site->blog_id == 1) continue;
+			
+			$approvalQueueKey = "approval_queue_".$site->blog_id;
+			$products = get_option($approvalQueueKey);
+			$products = array_unique($products);
+			$approvalKey = 'display_business_approval_'.$site->blog_id;
+			?>
+			<fieldset class="" style="border:1px solid #cecece; padding: 10px;">
+				<legend><?php echo $site->domain ?></legend>
+				<div>
+					<?php if(count($products) > 0 && $products != '') { ?>
+							<form id="site_id_<?php echo $site->blog_id ?>" class="approval_form_submission" >
+							<ul>
+							<?php foreach($products as $pID) { 
+									$approved = get_post_meta($pID,$approvalKey,true);
+									$prod = get_post($pID);
+									echo "<li><span>".$pID." = ".$approvalKey." = ".$prod->post_title."</span><span><input ".($approved == 'yes' ? 'checked' : '')." type='checkbox' name='approval_queue[".$site->blog_id."][".$pID."]' value='yes' /></span></li>";
+									unset($approved);
+								?>
+								
+							<?php } ?>
+							
+							</ul>
+							<button type="button" onClick="submitApprovalForm('<?php echo $site->blog_id ?>');" >Submit</button>
+							</form>
+					<?php }else{ ?>
+						<p style="color: #fa0000;">No products found for approval.</p>
+					<?php } ?>
+				</div>
+			</fieldset>
+		<?php } ?>
+		</div>
+		<script>
+			function submitApprovalForm(blogid){
+				var ajxUrl = "<?php echo admin_url('admin-ajax.php'); ?>";				
+				var formData = jQuery("#site_id_"+blogid).serialize();
+				var data = {
+					'action':'approve_site_products',
+					'data' : formData,
+					'site_id': blogid
+				};
+
+				jQuery.ajax({
+					url: ajxUrl,
+					type: 'POST',
+					dataType: 'json',
+					data: data,
+				})
+				.done(function(data) {
+					console.log(data);
+					//var res = JSON.parse(data);
+					if (data.status == "true") {
+						var message = jQuery("<span />", {
+								 "class": "flash_message",
+								 text: "Saved!"
+							  }).fadeIn("fast");
+							parentel.append(message);
+							message.delay(2000).fadeOut("normal", function() {
+							 jQuery(this).remove();
+						  });
+					}
+				})
+				.fail(function() {
+					console.log("error");
+				});
+			}
+		</script>
+	<?php }
+	
+add_action( 'wp_ajax_nopriv_approve_site_products', 'approve_site_products' );
+add_action( 'wp_ajax_approve_site_products', 'approve_site_products' );
+function approve_site_products() {
+	
+	$ret = array('status'=>'false');
+	if(is_admin()) {
+			$params = array();
+			parse_str($_POST['data'], $params);
+			$currentSite = $_POST['site_id'];
+			$pIds = array_keys($params['approval_queue'][$currentSite]);
+			$approvalKey = 'display_business_approval_'.$currentSite;
+			$approvalQueueKey = "approval_queue_".$currentSite;
+			$products = get_option($approvalQueueKey);
+			$products = array_unique($products);
+			
+			$approved = [];
+			if(count($pIds) > 0) {
+				foreach($products as $id) {
+					if(in_array($id,$pIds)) {
+						update_post_meta($id,$approvalKey,'yes');
+						$approved[] = $id;
+					}else{
+						update_post_meta($id,$approvalKey,'no');
+					}
+					
+				}
+			}
+			// set approval queue for admins 
+			//update_approval_queue();
+			/*$oldApprovalQueue = get_option($approvalQueueKey);
+			if($oldApprovalQueue != '') {
+				$newQueue = array_merge($oldApprovalQueue,$postsToApprove);
+			}else{
+				$newQueue = $postsToApprove;
+			}*/
+			//$newQueue = array_unique($newQueue);
+			//update_option($approvalQueueKey,$newQueue);
+			//send email to admin here 
+		$ret['status'] = 'true';
+		echo json_encode($ret);die();	
+	}
+	echo json_encode($ret);die();	
+}
+	
+add_action( 'wp_ajax_nopriv_upload_new_files', 'upload_new_files' );
+add_action( 'wp_ajax_upload_new_files', 'upload_new_files' );
+function upload_new_files() {
+	restore_current_blog();
+	$siteID = get_current_blog_id();
+	$isManager = isManager();
+	global $switched;
+   switch_to_blog(1);
+	$ret = array('status'=>'false');
+	if($isManager && $_POST['pid'] > 0) { // Are you a manager? no??? Naughty!! Go back and be a man-ager
+		$files = $_POST;
+		$post_id = $files['pid'];
+		update_post_meta($post_id,'thm_certificate',$files['cert-inc-id']);
+		update_post_meta($post_id,'thm_article',$files['article-inc-id']);
+		update_post_meta($post_id,'thm_memorandum',$files['memorandum-id']);
+		$banks = (array) get_post_meta($post_id,'thm_bank_statements',true);
+		$financials = (array) get_post_meta($post_id,'thm_financial_reports',true);
+		$extraFiles = (array) get_post_meta($post_id,'thm_extra_files',true);
+		if(count($files['bank-file-id']) > 0) {
+			$bankOutput = [];			
+			foreach($_POST['bank-file-id'] as $orderKey => $value) {
+				if($value != '' && $value > 0) {
+					$bankOutput[] = $value;
+				}
+			}
+			$banks = array_merge($banks,$bankOutput);
+			$banks = array_unique($banks);
+		}
+		if(count($files['financial-file-id']) > 0) {
+			$financialOutput = [];			
+			foreach($_POST['financial-file-id'] as $orderKey => $value) {
+				if($value != '' && $value > 0) {
+					$financialOutput[] = $value;
+				}
+			}
+			$financials = array_merge($financials,$financialOutput);
+			$financials = array_unique($financials);
+		}
+		if(count($files['extra-file-id']) > 0) {
+			$extraOutput = [];
+			$extraTitleOutput = [];			
+			foreach($_POST['extra-file-id'] as $orderKey => $value) {
+				if($value != '' && $value > 0) {
+					$extraOutput[] = $value;
+					if(isset($_POST['extra-file-title'][$orderKey]) && $_POST['extra-file-title'][$orderKey] != '') {
+						$extraTitleOutput[$value] = $_POST['extra-file-title'][$orderKey];
+					}
+				}
+			}
+			$extraFiles = array_merge($extraFiles,$extraOutput);
+			$extraFiles = array_unique($extraFiles);
+			if(count($extraTitleOutput) > 0 ) {
+				foreach($extraTitleOutput as $fileID => $titleVal) {
+					$titleMetaKey = "extra_file_title_".$fileID; 	
+					update_post_meta($post_id,$titleMetaKey,$titleVal);
+				} 
+			}
+		}
+		// update files 
+		update_post_meta($post_id, 'thm_bank_statements', $banks);
+		update_post_meta($post_id, 'thm_financial_reports', $financials);
+		update_post_meta($post_id, 'thm_extra_files', $extraFiles);
+		$ret = array('status'=>'true');
+	}
+	restore_current_blog();
+	echo json_encode($ret);die();	
+}
+
+function getInvestingIntoLabels($array = array()) {
+	if(count($array) <= 0) {
+		return '';
+	}
+	$labels = [];
+	foreach($array as $val) {
+		$labels[] = ucwords(str_replace("_"," ",$val));
+	}
+	return implode(", ",$labels);
+}
+
+// Show share purchase history in user profiles
+add_action( 'show_user_profile', 'add_customer_notes',9,1);
+add_action( 'edit_user_profile', 'add_customer_notes',9,1);
+
+function add_customer_notes($user) { 
+	$trcNotes = get_user_meta($user->ID,'trc_notes',true);
+?>
+	<table class="form-table">
+		<tbody>
+			<tr>
+				<th><label for="trc_notes">TRC Notes</label></th>
+				<td>
+					<textarea class="custom_field_input" name="trc_notes" id="trc_notes"><?php echo $trcNotes ?></textarea>
+				</td>
+			</tr>
+		</tbody>
+	</table>
+<?php }
+
+add_action('edit_user_profile_update', 'update_customer_notes');
+add_action('personal_options_update', 'update_customer_notes');
+ function update_customer_notes($user_id) {
+     if ( current_user_can('edit_user',$user_id) )
+         update_user_meta($user_id, 'trc_notes', $_POST['trc_notes']);
+ }
+ 
+function gd_login_redirect( $redirect_to, $request, $user ){
+	//if($user->ID > 0) {
+		return home_url('/opportunities');
+	//}
+}
+//add_filter( 'login_redirect', 'gd_login_redirect', 999, 3 );
+
+function tm_userinfo_investment() {
+	global $wpdb;
+    global $post;
+	
+	$pSiteId = get_post_meta($post->ID, 'site_id', true);
+	$investorID = get_post_meta($post->ID,'themeum_investor_user_id',true);
+	if($investorID != '') {
+		$userMetas = get_user_meta($investorID);
+		?>
+		<div class="investment_user_info">
+			<ul>
+				<?php if($userMetas['billing_first_name'][0] != '') { ?>
+					<li>
+						<span>First Name:</span>
+						<span><?php echo $userMetas['billing_first_name'][0] ?></span>
+					</li>
+				<?php } ?>
+				<?php if($userMetas['billing_last_name'][0] != '') { ?>
+					<li>
+						<span>Last Name:</span>
+						<span><?php echo $userMetas['billing_last_name'][0] ?></span>
+					</li>
+				<?php } ?>
+				<?php if($userMetas['billing_address_1'][0] != '') { ?>
+					<li>
+						<span>Address 1:</span>
+						<span><?php echo $userMetas['billing_address_1'][0] ?></span>
+					</li>
+				<?php } ?>
+				<?php if($userMetas['billing_address_2'][0] != '') { ?>
+					<li>
+						<span>Address 2:</span>
+						<span><?php echo $userMetas['billing_address_2'][0] ?></span>
+					</li>
+				<?php } ?>
+				<?php if($userMetas['billing_city'][0] != '') { ?>
+					<li>
+						<span>City:</span>
+						<span><?php echo $userMetas['billing_city'][0] ?></span>
+					</li>
+				<?php } ?>
+				<?php if($userMetas['billing_state'][0] != '') { ?>
+					<li>
+						<span>State:</span>
+						<span><?php echo $userMetas['billing_state'][0] ?></span>
+					</li>
+				<?php } ?>
+				<?php if($userMetas['billing_postcode'][0] != '') { ?>
+					<li>
+						<span>Postcode:</span>
+						<span><?php echo $userMetas['billing_postcode'][0] ?></span>
+					</li>
+				<?php } ?>
+				<?php if($userMetas['billing_country'][0] != '') { ?>
+					<li>
+						<span>Country:</span>
+						<span><?php echo $userMetas['billing_country'][0] ?></span>
+					</li>
+				<?php } ?>
+				<?php if($userMetas['billing_phone'][0] != '') { ?>
+					<li>
+						<span>Phone:</span>
+						<span><?php echo $userMetas['billing_phone'][0] ?></span>
+					</li>
+				<?php }else{ ?>
+					<li>
+						<span>Phone:</span>
+						<span><?php echo $userMetas['phone_number'][0] ?></span>
+					</li>
+				<?php } ?>
+				<?php if($userMetas['billing_email'][0] != '') { ?>
+					<li>
+						<span>Email:</span>
+						<span><?php echo $userMetas['billing_email'][0] ?></span>
+					</li>
+				<?php } ?>
+			</ul>
+		</div>
+		<?php
+	}else{
+		echo "<p>No user info found.</p>";		
+	}
+	?>
+	<style>
+	.investment_user_info ul li {
+		clear:both;
+	}
+		.investment_user_info ul li > span {
+			font-weight: bold;
+			float:left;
+			width: 200px;
+		}
+		.investment_user_info ul li > span + span {
+			font-weight: normal;
+			float:left;
+		}
+	</style>
+	<?php
+}
+
+add_action( 'wp_ajax_nopriv_save_featured', 'save_featured' );
+add_action( 'wp_ajax_save_featured', 'save_featured' );
+function save_featured() {
+	restore_current_blog();
+	$isManager = isManager();
+	$currentSite = get_current_blog_id();
+	global $switched; 
+   switch_to_blog(1);
+	$ret = array('status'=>'false');
+	if($isManager) {
+		if( (int) $_POST['pid'] > 0) {
+			//update_post_meta();
+			$value = $_POST['value'];
+			$metaKey = "is_featured_".$currentSite;
+			update_post_meta($_POST['pid'],$metaKey,$value);
+		}
+		$ret['status'] = 'true';
+		restore_current_blog();
+		echo json_encode($ret);die();	
+	}
+	restore_current_blog();
+	echo json_encode($ret);die();	
+}
+
+/*Customizer Code HERE*/
+add_action('customize_register', 'theme_email_header_footer_customizer');
+function theme_email_header_footer_customizer($wp_customize){
+ //adding section in wordpress customizer   
+$wp_customize->add_section('email_header_footer_settings_section', array(
+  'title'          => 'Email Header/Footer Section'
+ ));
+//adding setting for footer text area
+$wp_customize->add_setting('email_header_text', array(
+ 'default'        => 'Default Text For Email Header',
+ ));
+$wp_customize->add_setting('email_footer_text', array(
+ 'default'        => 'Default Text For Email Footer',
+ ));
+ 
+ $wp_customize->add_control('email_header_text', array(
+ 'label'   => 'Header Text Here',
+  'section' => 'email_header_footer_settings_section',
+ 'type'    => 'textarea',
+));
+
+$wp_customize->add_control('email_footer_text', array(
+ 'label'   => 'Footer Text Here',
+  'section' => 'email_header_footer_settings_section',
+ 'type'    => 'textarea',
+));
+}
+
+
+if (!wp_next_scheduled('my_task_hook')) {
+	wp_schedule_event( strtotime('09:00:00'), 'daily', 'my_task_hook' );
+}
+add_action ( 'my_task_hook', 'my_schedule_hook' );
+
+function my_schedule_hook() {
+switch_to_blog(1);
+	$date = date('Y-m-d'); //'2019-03-26';
+    $date7Days = date('Y-m-d',strtotime ( '-7 day' ));   
+				
+	$args = array(
+		'post_type' => 'investment',
+		'post_status'    => 'pending',
+		'posts_per_page'    => '-1',
+		'meta_query' => array(
+			array(
+				'key'     => 'themeum_investment_date',
+				'value'   => $date,
+				'compare' => '<=',
+				'type'    => 'DATE'
+			),
+			array(
+				'key'     => 'themeum_investment_date',
+				'value'   => $date7Days,
+				'compare' => '>=',
+				'type'    => 'DATE'
+			),
+			array(
+				'key'     => 'themeum_source_of_wealth',
+				'value'   => 'cash',
+				'compare' => '=',
+			)
+		)
+	);
+
+	$the_query  = new WP_Query( $args );
+	
+	if($the_query->post_count > 0) {
+		$total = 0;
+		foreach($the_query->posts as $post) {
+			$isReminderSent = get_post_meta($post->ID,'reminder_sent',true);
+			if($isReminderSent == 'yes') {
+				continue;
+			}
+			$siteID = get_post_meta($post->ID,'site_id',true);
+			$blogDetails = get_blog_details( array( 'blog_id' => $siteID ) );
+			
+			$siteName = $blogDetails->blogname;
+			$investorID = get_post_meta($post->ID,'themeum_investor_user_id',true);
+			$uData = get_userdata($investorID);
+			$phoneNumber = get_user_meta($investorID,'phone_number',true);
+			$phoneNumber = trim($phoneNumber);
+			if($phoneNumber == 'n/a' || $phoneNumber == 'N/A' || $phoneNumber == '' ) {
+				continue;
+			}
+			$countryCode = '+44'; // Replace with known country code of user.
+			$number_to = $phoneNumber;
+			if( $phoneNumber[0] == '0') {
+			  $number_to = "{$countryCode}" . substr($phoneNumber,1);
+			}else if($phoneNumber[0] != '0' && $phoneNumber[0] != '4'){
+			  $number_to = "{$countryCode}" . $phoneNumber; 
+			}
+		   
+			$msg = $siteName.": Don't forget to make your bank transfer to complete your investment.";
+			//$number_to = "+447740281666";
+			// send sms 
+			$args = array( 
+				'number_to' => $number_to,
+				'message' => $msg,
+			); 
+			twl_send_sms( $args );	
+			restore_current_blog();
+			switch_to_blog($siteID);
+			//$headers = array("Content-Type: text/html; charset=UTF-8 \r\n");
+			$headers = "Content-Type: text/html; charset=UTF-8\r\n";
+			//wp_mail($uData->data->user_email, "Reminder of cash transaction", $msg,$headers);
+			//echo get_current_blog_id();
+			$siteOptions = get_option('swpsmtp_options');
+			$headers .= "From: ".$siteOptions['from_name_field']." <".$siteOptions['from_email_field'].">\r\n";
+			$headers .= "Reply-To: '".$siteOptions['from_name_field']."' <".$siteOptions['from_email_field'].">\r\n";
+			$headers .= "X-Mailer: PHP". phpversion() ."\r\n";
+			mail($uData->data->user_email, "Reminder of cash transaction", $msg,$headers);
+			//mail('', "Reminder of cash transaction sent to ".$number_to." and ".$uData->data->user_email, $msg,$headers);
+			
+			//wp_mail('gdang.gits@gmail.com', "Reminder of cash transaction sent to ".$number_to." and ".$uData->data->user_email, $msg,$headers);
+			restore_current_blog();
+			switch_to_blog(1);
+			update_post_meta($post->ID,'reminder_sent','yes');
+			
+			// nullyfy the vars
+			unset($siteOptions);
+			unset($headers);
+		}
+	}
+	restore_current_blog();
+}
+
+/*function my_schedule_hook(){ // this isbackup function
+    switch_to_blog(1);
+	$date = date('Y-m-d'); //'2019-03-26';
+    $date7Days = date('Y-m-d',strtotime ( '-7 day' ));   
+	
+				
+	$args = array(
+		'post_type' => 'investment',
+		'post_status'    => 'pending',
+		'posts_per_page'    => '-1',
+		'meta_query' => array(
+			array(
+				'key'     => 'themeum_investment_date',
+				'value'   => $date,
+				'compare' => '<=',
+				'type'    => 'DATE'
+			),
+			array(
+				'key'     => 'themeum_investment_date',
+				'value'   => $date7Days,
+				'compare' => '>=',
+				'type'    => 'DATE'
+			),
+			array(
+				'key'     => 'themeum_source_of_wealth',
+				'value'   => 'cash',
+				'compare' => '=',
+			)
+		)
+	);
+
+	$the_query  = new WP_Query( $args );
+	echo "<pre>";
+	print_r($the_query->posts);
+	echo "</pre>";
+	
+	if($the_query->post_count > 0) {
+		$total = 0;
+		foreach($the_query->posts as $post) {
+			$isReminderSent = get_post_meta($post->ID,'reminder_sent',true);
+			if($isReminderSent == 'yes') {
+				continue;
+			}
+			$siteID = get_post_meta($post->ID,'site_id',true);
+			$blogDetails = get_blog_details( array( 'blog_id' => $siteID ) );
+			
+			$siteName = $blogDetails->blogname;
+			$investorID = get_post_meta($post->ID,'themeum_investor_user_id',true);
+			$uData = get_userdata($investorID);
+			$phoneNumber = get_user_meta($investorID,'phone_number',true);
+			$phoneNumber = trim($phoneNumber);
+			if($phoneNumber == 'n/a' || $phoneNumber == 'N/A' || $phoneNumber == '' ) {
+				continue;
+			}
+			$countryCode = '+44'; // Replace with known country code of user.
+			$number_to = $phoneNumber;
+			if( $phoneNumber[0] == '0') {
+			  $number_to = "{$countryCode}" . substr($phoneNumber,1);
+			}else if($phoneNumber[0] != '0' && $phoneNumber[0] != '4'){
+			  $number_to = "{$countryCode}" . $phoneNumber; 
+			}
+		   
+			$msg = $siteName.": Don't forget to make your bank transfer to complete your investment.";
+			//$number_to = "+447740281666";
+			// send sms 
+			$args = array( 
+				'number_to' => $number_to,
+				'message' => $msg,
+			); 
+			//twl_send_sms( $args );	
+			restore_current_blog();
+			switch_to_blog($siteID);
+			$headers = array('Content-Type: text/html; charset=UTF-8');
+			//wp_mail($uData->data->user_email, "Reminder of cash transaction", $msg,$headers);
+			//echo get_current_blog_id();
+			$siteOptions = get_option('swpsmtp_options');
+			$headers[] = "From: ".$siteOptions['from_name_field']." <".$siteOptions['from_email_field'].">";
+			wp_mail('gdang.gits@gmail.com', "Reminder of cash transaction sent to ".$number_to." and ".$uData->data->user_email, $msg,$headers);
+			restore_current_blog();
+			switch_to_blog(1);
+			//update_post_meta($post->ID,'reminder_sent','yes');
+			
+			// nullyfy the vars
+			unset($siteOptions);
+			unset($headers);
+		}
+	}
+	restore_current_blog();
+}*/
+
+/******************* DUMMY FUNCTION *******************************/
+/*add_filter('wp_mail_from','reminder_set_wp_mail_from',999999);
+function reminder_set_wp_mail_from($email) {
+  return $email;
+}*/
+/*add_filter('wp_mail_from_name','reminder_set_wp_mail_from_name',999999);
+function reminder_set_wp_mail_from_name($name) {
+  return $name;
+}*/
+
+function dummyreminderhook(){
+    switch_to_blog(1);
+	$date = date('Y-m-d'); //'2019-03-26';
+    $date7Days = date('Y-m-d',strtotime ( '-7 day' ));   
+				
+	$args = array(
+		'post_type' => 'investment',
+		'post_status'    => 'pending',
+		'posts_per_page'    => '-1',
+		'meta_query' => array(
+			array(
+				'key'     => 'themeum_investment_date',
+				'value'   => $date,
+				'compare' => '<=',
+				'type'    => 'DATE'
+			),
+			array(
+				'key'     => 'themeum_investment_date',
+				'value'   => $date7Days,
+				'compare' => '>=',
+				'type'    => 'DATE'
+			),
+			array(
+				'key'     => 'themeum_source_of_wealth',
+				'value'   => 'cash',
+				'compare' => '=',
+			)
+		)
+	);
+
+	$the_query  = new WP_Query( $args );
+	
+	if($the_query->post_count > 0) {
+		$total = 0;
+		foreach($the_query->posts as $post) {
+			$isReminderSent = get_post_meta($post->ID,'reminder_sent',true);
+			if($isReminderSent == 'yes') {
+				continue;
+			}
+			$siteID = get_post_meta($post->ID,'site_id',true);
+			$blogDetails = get_blog_details( array( 'blog_id' => $siteID ) );
+			
+			$siteName = $blogDetails->blogname;
+			$investorID = get_post_meta($post->ID,'themeum_investor_user_id',true);
+			$uData = get_userdata($investorID);
+			$phoneNumber = get_user_meta($investorID,'phone_number',true);
+			$phoneNumber = trim($phoneNumber);
+			if($phoneNumber == 'n/a' || $phoneNumber == 'N/A' || $phoneNumber == '' ) {
+				continue;
+			}
+			$countryCode = '+44'; // Replace with known country code of user.
+			$number_to = $phoneNumber;
+			if( $phoneNumber[0] == '0') {
+			  $number_to = "{$countryCode}" . substr($phoneNumber,1);
+			}else if($phoneNumber[0] != '0' && $phoneNumber[0] != '4'){
+			  $number_to = "{$countryCode}" . $phoneNumber; 
+			}
+		   
+			$msg = $siteName.": Don't forget to make your bank transfer to complete your investment.";
+			//$number_to = "+447740281666";
+			// send sms 
+			$args = array( 
+				'number_to' => $number_to,
+				'message' => $msg,
+			); 
+			//twl_send_sms( $args );	
+			restore_current_blog();
+			switch_to_blog($siteID);
+			//$headers = array("Content-Type: text/html; charset=UTF-8 \r\n");
+			$headers = "Content-Type: text/html; charset=UTF-8\r\n";
+			//wp_mail($uData->data->user_email, "Reminder of cash transaction", $msg,$headers);
+			//echo get_current_blog_id();
+			$siteOptions = get_option('swpsmtp_options');
+			$headers .= "From: ".$siteOptions['from_name_field']." <".$siteOptions['from_email_field'].">\r\n";
+			$headers .= "Reply-To: '".$siteOptions['from_name_field']."' <".$siteOptions['from_email_field'].">\r\n";
+			$headers .= "X-Mailer: PHP". phpversion() ."\r\n";
+			//mail($uData->data->user_email, "Reminder of cash transaction", $msg,$headers);
+			mail('gdang.gits@gmail.com', "Reminder of cash transaction sent to ".$number_to." and ".$uData->data->user_email, $msg,$headers);
+			
+			//wp_mail('gdang.gits@gmail.com', "Reminder of cash transaction sent to ".$number_to." and ".$uData->data->user_email, $msg,$headers);
+			restore_current_blog();
+			switch_to_blog(1);
+			//update_post_meta($post->ID,'reminder_sent','yes');
+			
+			// nullyfy the vars
+			unset($siteOptions);
+			unset($headers);
+		}
+	}
+	restore_current_blog();
+}
+//dummyreminderhook();
+/*************************/ 
+
+function getInvestments($type, $params) {
+	if($type == '') {
+		$type = 'cash';
+	}
+	if(!isset($params['limit'])) {
+		$limit = -1;
+	}else{
+		$limit = $params['limit'];
+	}
+	if($type == 'cancelled') {
+		$args = array(
+			'post_type' => 'investment',
+			'post_status'    => array('cancelled'),
+			'meta_key'          => 'themeum_investment_date',
+			'orderby'           => 'meta_value',
+			'order'             => 'DESC',		
+			'posts_per_page' => $limit
+		);
+	}else{
+		if($type=='all') {
+			$args = array(
+				'post_type' => 'investment',
+				'post_status'    => array('pending','received','cancelled','publish'),
+				'meta_key'          => 'themeum_investment_date',
+				'orderby'           => 'meta_value',
+				'order'             => 'DESC',		
+				'posts_per_page' => $limit
+			);
+		}else{
+			$args = array(
+				'post_type' => 'investment',
+				'post_status'    => array('pending','received','cancelled','publish'),
+				'meta_key'          => 'themeum_investment_date',
+				'orderby'           => 'meta_value',
+				'order'             => 'DESC',		
+				'meta_query' => array(
+					array(
+						'key' => 'themeum_source_of_wealth',
+						'value' => $type,
+						'compare' => '='
+					)
+				),
+				'posts_per_page' => $limit
+			);
+		}
+	}
+	if(isset($params['status']) && $params['status'] != '') {
+		$args['post_status'] = $params['status'];
+	}
+	if(isset($params['product']) && $params['product'] != '') {
+		$product = wp_unslash( $params['product'] );
+		$product = sanitize_text_field( $product );
+		$args['meta_query'][] = array(
+					'key' => 'themeum_project_name',
+					'value' => $product,
+					'compare' => 'LIKE'
+				);
+	}
+	if(isset($params['funding_source']) && $params['funding_source'] != '') {
+		$args['meta_query'][] = array(
+					'key' => 'themeum_source_of_wealth',
+					'value' => $params['funding_source'],
+					'compare' => '='
+				);
+	}
+	if(isset($params['investment_type']) && $params['investment_type'] != '') {
+		$args['meta_query'][] = array(
+					'key' => 'themeum_investing_into',
+					'value' => $params['investment_type'],
+					'compare' => '='
+				);
+	}
+	if(isset($params['filter_site']) && $params['filter_site'] != '') {
+		$args['meta_query'][] = array(
+					'key' => 'site_id',
+					'value' => $params['filter_site'],
+					'compare' => '='
+				);
+	}
+	if(isset($params['user_id']) && $params['user_id'] > 0) {
+		$args['meta_query'][] = array(
+					'key' => 'themeum_investor_user_id',
+					'value' => $params['user_id'],
+					'compare' => '='
+				);
+	}
+	
+	$query = new WP_Query($args);
+	if($query->post_count) {
+		return $query->posts;
+	}
+	return false;
+}
+
+// custom menu item in admin panel for reports to display 
+function reports_admin_menu() {
+	$cSite = get_current_blog_id();
+		if($cSite == 1) {
+			add_menu_page(
+		__( 'Reports', 'custom_gd_lang' ),
+		__( 'Reports', 'custom_gd_lang' ),
+		'manage_options',
+		'products_reports',
+		'admin_products_reports',
+		'dashicons-schedule',
+		3
+	);
+		}
+	
+}
+
+add_action( 'admin_menu', 'reports_admin_menu' );
+
+function admin_products_reports() {
+		global $wpdb;
+		$cSite = get_current_blog_id();
+		if($cSite != 1) {
+			return;
+		}
+		$params = array();
+		if(isset($_GET['filter_status']) && $_GET['filter_status'] != '') {
+			$params['status'] = $_GET['filter_status'];
+		}
+		if(isset($_GET['filter_product']) && $_GET['filter_product'] != '') {
+			$params['product'] = $_GET['filter_product'];
+		}
+		if(isset($_GET['filter_funding_source']) && $_GET['filter_funding_source'] != '') {
+			$params['funding_source'] = $_GET['filter_funding_source'];
+		}
+		if(isset($_GET['filter_investment_type']) && $_GET['filter_investment_type'] != '') {
+			$params['investment_type'] = $_GET['filter_investment_type'];
+		}
+		if(isset($_GET['filter_site']) && $_GET['filter_site'] != '') {
+			$params['filter_site'] = $_GET['filter_site'];
+		}
+		
+		if(!isset($_GET['tab']) || $_GET['tab'] == 'isa-transactions' || $_GET['tab'] == '') {
+			$investments = getInvestments('all',$params);
+		}else if(isset($_GET['tab']) && $_GET['tab'] == 'cash-transactions') {
+			$investments = getInvestments('cash', $params);
+		}else if(isset($_GET['tab']) && $_GET['tab'] == 'cancelled-transactions') {
+			$investments = getInvestments('cancelled', $params);
+		}
+		
+		?>
+		<div class="products_reports_container">
+			<h1>
+				<?php esc_html_e( 'Reports (This page is under construction)', 'my-plugin-textdomain' ); ?>
+			</h1>
+			<div class="tabs-container reports-tabs">
+				<ul>
+					<li class="<?php echo (!isset($_GET['tab']) || $_GET['tab'] == 'isa-transactions' || $_GET['tab'] == '')  ? 'active' : '' ?>"><a href="<?php echo add_query_arg(array('page'=>'products_reports','tab'=>'isa-transactions'), admin_url('admin.php')) ?>" id="tab-isa-transactions">All Transactions</a></li>
+					<!--<li class="<?php echo (isset($_GET['tab']) && $_GET['tab'] == 'cash-transactions')  ? 'active' : '' ?>"><a href="<?php echo add_query_arg('tab','cash-transactions') ?>" id="tab-cash-transactions">Cash Transactions</a></li>
+					<li class="<?php echo (isset($_GET['tab']) && $_GET['tab'] == 'cancelled-transactions')  ? 'active' : '' ?>"><a href="<?php echo add_query_arg('tab','cancelled-transactions') ?>" id="tab-cancelled-transactions">Cancelled Transactions</a></li>-->
+					<li class="<?php echo (isset($_GET['tab']) && $_GET['tab'] == 'users')  ? 'active' : '' ?>"><a href="<?php echo add_query_arg('tab','users') ?>" id="tab-users">Users</a></li>
+				</ul>
+			</div>
+			<?php if(!isset($_GET['tab']) || $_GET['tab'] == 'isa-transactions' || $_GET['tab'] == '') { ?>
+			<section class="reports_content content-isa-transactions" id="content-isa-transactions">
+				<h2>All Transactions</h2>
+				<div class="filter_box">
+					<form>
+						<input type="hidden" name="page" value="products_reports" />
+						<input type="hidden" name="tab" value="<?php echo (!isset($_GET['tab']) || $_GET['tab'] == '')  ? 'isa-transactions' : $_GET['tab'] ?>" />
+						<span><input type="text" name="filter_name_email" id="filter_name_email" placeholder="Name/Email" /></span>
+						<span><input type="text" name="filter_product" id="filter_product" placeholder="product" value="<?php echo isset($_GET['filter_product']) ? $_GET['filter_product'] : '' ?>" /></span>
+						<span>
+							<select name="filter_funding_source">
+								<option value="">Funding Source</option>
+								<option value="isa" <?php echo isset($_GET['filter_funding_source']) && $_GET['filter_funding_source'] == 'isa' ? 'selected' : '' ?>>ISA</option>
+								<option value="cash" <?php echo isset($_GET['filter_funding_source']) && $_GET['filter_funding_source'] == 'cash' ? 'selected' : '' ?>>Cash</option>
+								<option value="sass" <?php echo isset($_GET['filter_funding_source']) && $_GET['filter_funding_source'] == 'sass' ? 'selected' : '' ?>>SASS</option>
+								<option value="sipp" <?php echo isset($_GET['filter_funding_source']) && $_GET['filter_funding_source'] == 'sipp' ? 'selected' : '' ?> >SIPP</option>
+							</select>
+						</span>
+						<span>
+							<select name="filter_investment_type">
+								<option value="">Investment Type</option>
+								<option value="isa" <?php echo isset($_GET['filter_investment_type']) && $_GET['filter_investment_type'] == 'isa' ? 'selected' : '' ?>>ISA</option>
+								<option value="bond" <?php echo isset($_GET['filter_investment_type']) && $_GET['filter_investment_type'] == 'bond' ? 'selected' : '' ?>>Bond</option>
+								<option value="loan_note" <?php echo isset($_GET['filter_investment_type']) && $_GET['filter_investment_type'] == 'loan_note' ? 'selected' : '' ?>>Loan Note</option>
+								<option value="equity" <?php echo isset($_GET['filter_investment_type']) && $_GET['filter_investment_type'] == 'equity' ? 'selected' : '' ?> >Equity</option>
+								<option value="fund" <?php echo isset($_GET['filter_investment_type']) && $_GET['filter_investment_type'] == 'fund' ? 'selected' : '' ?> >Fund</option>
+							</select>
+						</span>
+						<span>
+							<select name="filter_status">
+								<option value="">Status</option>
+								<option value="pending" <?php echo isset($_GET['filter_status']) && $_GET['filter_status'] == 'pending' ? 'selected' : '' ?>>Awaiting Funding</option>
+								<option value="received" <?php echo isset($_GET['filter_status']) && $_GET['filter_status'] == 'received' ? 'selected' : '' ?>>Funds Received</option>
+								<option value="publish" <?php echo isset($_GET['filter_status']) && $_GET['filter_status'] == 'publish' ? 'selected' : '' ?>>Completed</option>
+								<option value="cancelled" <?php echo isset($_GET['filter_status']) && $_GET['filter_status'] == 'cancelled' ? 'selected' : '' ?> >Cancelled</option>
+							</select>
+						</span>
+						<span>
+							<?php 
+								$allSites = get_sites(array('site__not_in' => array(1)));
+								
+							?>
+							<select name="filter_site">
+								<option value="">White Label Site</option>
+								<?php 
+									if(count($allSites) > 0):
+									  foreach($allSites as $site) : 
+										$siteName = get_blog_details($site->blog_id)->blogname;
+								?>
+										<option value="<?php echo $site->blog_id ?>" <?php echo isset($_GET['filter_site']) && $_GET['filter_site'] == $site->blog_id ? 'selected' : '' ?> ><?php echo $siteName ?></option>
+								<?php endforeach; 
+									endif;
+								?>
+							</select>
+						</span>
+						<span><button type="submit" name="filter_button" >Filter</button></span>
+					</form>
+					<form action="<?php echo admin_url("admin-post.php") ?>" method="post" class="export-reports-form">
+					<input type="hidden" name="action" value="exportreports" />
+					<input type="hidden" name="tab" value="all" /> <?php // echo (!isset($_GET['tab']) || $_GET['tab'] == '')  ? 'isa-transactions' : $_GET['tab'] ?>
+					<input type="hidden" name="status" value="<?php echo isset($_GET['filter_status']) && $_GET['filter_status'] ? $_GET['filter_status'] : '' ?>" />
+					<input type="hidden" name="product" value="<?php echo isset($_GET['filter_product']) ? $_GET['filter_product'] : '' ?>" />
+					<input type="hidden" name="funding_source" value="<?php echo isset($_GET['filter_funding_source']) ? $_GET['filter_funding_source'] : '' ?>" />
+					<input type="hidden" name="investment_type" value="<?php echo isset($_GET['filter_investment_type']) ? $_GET['filter_investment_type'] : '' ?>" />
+					<input type="hidden" name="filter_site" value="<?php echo isset($_GET['filter_site']) ? $_GET['filter_site'] : '' ?>" />
+					<button type="submit" name="exportbtn">Export to CSV</button>
+				</form><br/>
+				</div>
+				<table border='1' cellpadding="5" width="100%" cellspacing="0" id="table-isa-transactions" class="content-table">
+					<thead>
+						<tr><th class="column_fname">First Name</th><th class="column_lname">Last Name</th><th class="column_email">Email</th><th>Investor Type</th><th>Product</th><th>Funding Source</th><th>Investment Type</th><th>Status</th><th>Investment Amount</th><th>White Label Site</th><th>Referred By</th><th>Actions</th></tr>
+					</thead>
+					<tbody>
+						<?php if($investments) { 
+							$transferTypeLabels = array(
+								'isa_transfer' => 'ISA Transfer',
+								'new_isa' => 'New ISA',
+								'cash' => 'Cash',
+								'stocks' => 'Stocks and Shares',
+								'ifisa' => 'IFISA'
+							);
+						?>
+						<?php foreach($investments as $inv) : 
+							$invInfo = getInvestmentInfo($inv->ID);
+							$uMetas = get_user_meta($invInfo['investor_user_id']);
+							$uData = get_userdata($invInfo['investor_user_id']);
+							$invSiteID = get_post_meta($inv->ID,'site_id',true);
+							$blog_details = get_blog_details( $invSiteID );
+							$siteName = $blog_details->blogname;
+							$notes = get_post_meta($inv->ID,'themeum_notes',true);
+						?>
+							<tr class="investment-row" data-invid="<?php echo $inv->ID ?>">
+								<td><?php echo $uMetas['billing_first_name'][0] ?></td>
+								<td><?php echo $uMetas['billing_last_name'][0] ?></td>
+								<td><?php echo $uData->data->user_email ?></td>
+								<td><?php echo $uMetas['investor_type'][0] ?></td>
+								<td><?php echo '<a href="'.get_edit_post_link( $inv->ID ).'">'.get_the_title(esc_html($invInfo['investment_project_id'])).'</a>';  ?></td>
+								<td><?php echo $invInfo['source_of_wealth'] != '' ? $invInfo['source_of_wealth'] : '-' ?></td>
+								<td><?php echo $invInfo['investing_into'] != '' ? $invInfo['investing_into'] : '-' ?></td>
+								<td>
+									<?php 
+										$status = esc_html(get_post_meta( $inv->ID , 'themeum_status_all' , true ));
+										if($status == 'cancelled') {
+											echo "Funding Cancelled";
+										}else if ($status == 'received'){
+											echo "Funding Received";
+										}else if ($status == 'complete') {
+											echo "Investment Complete";
+										}else if ($status == 'pending'){
+											echo "Awaiting Funding";
+										}else{
+											echo "Awaiting Funding";
+										}
+									?>
+								</td>
+								<td>
+									£<?php echo $invInfo['investment_amount']; ?>
+								</td>
+								<td><?php echo $siteName ?></td>
+								<td><?php echo $uMetas['referralcode'][0] ?></td>
+								<td><a href="<?php echo get_edit_post_link($inv->ID); ?>">edit</a></td>
+							</tr>
+							<tr style="display:none;" class="details-row" id="investment-details-<?php echo $inv->ID ?>">
+								<td>
+									<span>DOB: </span><span><?php echo $uMetas['userdob'][0] ?></span> 
+								</td>
+								<td></td>
+								<td><span>NI Number: </span><span><?php echo $uMetas['ni_number'][0] ?></span></td>
+								<td>
+									<span>Address: </span>
+									<span>
+										<?php echo $uMetas['billing_address_1'][0] ?>,<?php echo $uMetas['billing_address_2'][0] ?>,
+										<?php echo $uMetas['billing_city'][0] ?>, <?php echo $uMetas['billing_state'][0] ?>,
+										<?php echo $uMetas['billing_country'][0] ?> - <?php echo $uMetas['billing_postcode'][0] ?>
+									</span>
+								</td>
+								<?php if($invInfo['source_of_wealth'] != 'isa'): ?>
+								<td></td>
+								<td></td>
+								<td></td>
+								<td></td>
+								<?php endif; ?>
+								<td><span>Contact Number: </span><span><?php echo $uMetas['phone_number'][0] ?></span></td>
+								<td><span>Funding Source: </span><span><?php echo $invInfo['source_of_wealth'] ?></span></td>
+								<td><span>ISA Type: </span><span><?php echo $invInfo['transfertype'] != '' ? $transferTypeLabels[$invInfo['transfertype']] : '-' ?></span></td>
+								<?php if($invInfo['source_of_wealth'] == 'isa'): ?>
+									<td><span>Name of ISA Provider: </span><span><?php echo $invInfo['name_isa_provider'] ?></span></td>
+									<td><span>Address of ISA Provider: </span><span><?php echo $invInfo['address1_isa_provider'].", ".$invInfo['address1_isa_provider'].", ".$invInfo['city_isa_provider'].", ".$invInfo['state_isa_provider'].", ".$invInfo['zip_isa_provider'] ?></span></td>
+									<td>
+										<span>Account/Reference Number: </span><span><?php echo $invInfo['account_isa_provider'] ?></span>
+										<?php if($invInfo['another_account'] == 'yes'): ?>
+										<br/>
+										<span>Another Account: </span><span><?php echo $invInfo['another_account_isa_provider'] ?></span>
+										<?php endif; ?>
+									</td>
+									<td><span>Full/Part ISA Transfer: </span><span><?php echo ucwords(str_replace("_"," ",$infInfo['full_part_isa_transfer'])); ?></span></td>
+								<?php endif; ?>
+								<td><span>Notes: </span><br/>
+									<ul class="investment-notes" id="notes_wrapper_<?php echo $inv->ID ?>">
+										<?php if(count($notes) > 0): ?>
+											<?php foreach($notes as $n): ?>
+													<li><?php echo $n ?></li>
+											<?php endforeach; ?>
+										<?php endif; ?>
+									</ul>
+									<div class="investment-notes-input"><input type="text" class="" id="notes_<?php echo $inv->ID ?>" placeholder="Add Note.."  /><button type="button" data-investmentid="<?php echo $inv->ID ?>" class="btn investment-notes-submit">Submit</button></div>
+								</td>
+							</tr>
+						<?php endforeach; ?>
+						<?php }else{ ?>
+							<tr>
+								<td colspan="7" align="center">No ISA Investments Found!</td>
+							</tr>
+						<?php } ?>
+					</tbody>
+				</table>
+			</section>
+			<?php 
+			} //end section ISA
+			
+			if(isset($_GET['tab']) && $_GET['tab'] == 'cash-transactions') { ?>
+			<section class="reports_content content-cash-transactions" id="content-cash-transactions">
+				<h2>Cash Transactions</h2>
+				<div class="filter_box">
+					<form>
+					<input type="hidden" name="page" value="products_reports" />
+					<input type="hidden" name="tab" value="<?php echo (!isset($_GET['tab']) || $_GET['tab'] == '')  ? 'isa-transactions' : $_GET['tab'] ?>" />
+					<span><input type="text" name="filter_name_email" id="filter_name_email" placeholder="Name/Email" /></span>
+					<span><input type="text" name="filter_product" id="filter_product" placeholder="product" /></span>
+					<span>
+						<select name="filter_status">
+							<option value="">Status</option>
+							<option value="pending" <?php echo isset($_GET['filter_status']) && $_GET['filter_status'] == 'pending' ? 'selected' : '' ?>>Pending</option>
+							<option value="received" <?php echo isset($_GET['filter_status']) && $_GET['filter_status'] == 'received' ? 'selected' : '' ?>>Funds Received</option>
+							<option value="publish" <?php echo isset($_GET['filter_status']) && $_GET['filter_status'] == 'publish' ? 'selected' : '' ?>>Completed</option>
+							<option value="cancelled" <?php echo isset($_GET['filter_status']) && $_GET['filter_status'] == 'cancelled' ? 'selected' : '' ?> >Cancelled</option>
+						</select>
+					</span>
+					<span><button type="submit" name="filter_button" >Filter</button></span>
+					</form>
+				</div>
+				<form action="<?php echo admin_url("admin-post.php") ?>" method="post" class="export-reports-form">
+					<input type="hidden" name="action" value="exportreports" />
+					<input type="hidden" name="tab" value="<?php echo (!isset($_GET['tab']) || $_GET['tab'] == '')  ? 'isa-transactions' : $_GET['tab'] ?>" />
+					<input type="hidden" name="status" value="<?php echo isset($_GET['filter_status']) && $_GET['filter_status'] ? $_GET['filter_status'] : '' ?>" />
+					<button type="submit" name="exportbtn">Export to CSV</button>
+				</form><br/>
+				<table border='1' cellpadding="5" width="100%" cellspacing="0" id="table-cash-transactions" class="content-table">
+					<thead>
+						<tr><th>First Name</th><th>Last Name</th><th>Email</th><th>Investor Type</th><th>Product</th><th>Status</th><th>Investment Amount</th><th>White Label Site</th><th>Referred By</th><th>Actions</th></tr>
+					</thead>
+					<tbody>
+						<?php if($investments) { 
+							$transferTypeLabels = array(
+								'isa_transfer' => 'ISA Transfer',
+								'new_isa' => 'New ISA'
+							);
+						?>
+						<?php foreach($investments as $inv) : 
+							$invInfo = getInvestmentInfo($inv->ID);
+							$uMetas = get_user_meta($invInfo['investor_user_id']);
+							$uData = get_userdata($invInfo['investor_user_id']);
+							$invSiteID = get_post_meta($inv->ID,'site_id',true);
+							$blog_details = get_blog_details( $invSiteID );
+							$siteName = $blog_details->blogname;
+							$notes = get_post_meta($inv->ID,'themeum_notes',true);
+						?>
+							<tr class="investment-row" data-invid="<?php echo $inv->ID ?>">
+								<td><?php echo $uMetas['billing_first_name'][0] ?></td>
+								<td><?php echo $uMetas['billing_last_name'][0] ?></td>
+								<td><?php echo $uData->data->user_email ?></td>
+								<td><?php echo $uMetas['investor_type'][0] ?></td>
+								<td><?php echo '<a href="'.get_edit_post_link( $inv->ID ).'">'.get_the_title(esc_html($invInfo['investment_project_id'])).'</a>';  ?></td>
+								<td>
+									<?php 
+										$status = esc_html(get_post_meta( $inv->ID , 'themeum_status_all' , true ));
+										if($status == 'cancelled') {
+											echo "Funding Cancelled";
+										}else if ($status == 'received'){
+											echo "Funding Received";
+										}else if ($status == 'complete') {
+											echo "Investment Complete";
+										}else if ($status == 'pending'){
+											echo "Awaiting Funding";
+										}else{
+											echo "Awaiting Funding";
+										}
+									?>
+								</td>
+								<td>
+									£<?php echo $invInfo['investment_amount']; ?>
+								</td>
+								<td><?php echo $siteName ?></td>
+								<td><?php echo $uMetas['referralcode'][0] ?></td>
+								<td><a href="<?php echo get_edit_post_link($inv->ID); ?>">edit</a></td>
+							</tr>
+							<tr style="display:none;" class="details-row" id="investment-details-<?php echo $inv->ID ?>">
+								<td>
+									<span>DOB: </span><span><?php echo $uMetas['userdob'][0] ?></span> 
+								</td>
+								<td></td>
+								<td></td>
+								<td><span>NI Number: </span><span><?php echo $uMetas['ni_number'][0] ?></span></td>
+								<td>
+									<span>Address: </span>
+									<span>
+										<?php echo $uMetas['billing_address_1'][0] ?>,<?php echo $uMetas['billing_address_2'][0] ?>,
+										<?php echo $uMetas['billing_city'][0] ?>, <?php echo $uMetas['billing_state'][0] ?>,
+										<?php echo $uMetas['billing_country'][0] ?> - <?php echo $uMetas['billing_postcode'][0] ?>
+									</span>
+								</td>
+								<td><span>Contact Number: </span><span><?php echo $uMetas['phone_number'][0] ?></span></td>
+								<td colspan="2"><span>Funding Source: </span><span><?php echo $invInfo['source_of_wealth'] ?></span></td>
+								<td><span>Notes: </span><br/>
+									<ul class="investment-notes" id="notes_wrapper_<?php echo $inv->ID ?>">
+										<?php if(count($notes) > 0): ?>
+											<?php foreach($notes as $n): ?>
+													<li><?php echo $n ?></li>
+											<?php endforeach; ?>
+										<?php endif; ?>
+									</ul>
+									<div class="investment-notes-input"><input type="text" class="" id="notes_<?php echo $inv->ID ?>" placeholder="Add Note.."  /><button type="button" data-investmentid="<?php echo $inv->ID ?>" class="btn investment-notes-submit">Submit</button></div>
+								</td>
+							</tr>
+						<?php endforeach; ?>
+						<?php }else{ ?>
+							<tr>
+								<td colspan="7" align="center">No Cash Investments Found!</td>
+							</tr>
+						<?php } ?>
+					</tbody>
+				</table>
+			</section>
+			<?php } // end Cash Transactions
+			if(isset($_GET['tab']) && $_GET['tab'] == 'cancelled-transactions') { ?>
+			<section class="reports_content content-cancelled-transactions" id="content-cancelled-transactions">
+				<h2>Cancelled Transactions</h2>
+				<div class="filter_box">
+					<form>
+					<input type="hidden" name="page" value="products_reports" />
+					<input type="hidden" name="tab" value="<?php echo (!isset($_GET['tab']) || $_GET['tab'] == '')  ? 'isa-transactions' : $_GET['tab'] ?>" />
+					<span><input type="text" name="filter_name_email" id="filter_name_email" placeholder="Name/Email" /></span>
+					<span><input type="text" name="filter_product" id="filter_product" placeholder="product" /></span>
+					<span>
+						<select name="filter_status">
+							<option value="">Status</option>
+							<option value="pending" <?php echo isset($_GET['filter_status']) && $_GET['filter_status'] == 'pending' ? 'selected' : '' ?>>Pending</option>
+							<option value="received" <?php echo isset($_GET['filter_status']) && $_GET['filter_status'] == 'received' ? 'selected' : '' ?>>Funds Received</option>
+							<option value="publish" <?php echo isset($_GET['filter_status']) && $_GET['filter_status'] == 'publish' ? 'selected' : '' ?>>Completed</option>
+							<option value="cancelled" <?php echo isset($_GET['filter_status']) && $_GET['filter_status'] == 'cancelled' ? 'selected' : '' ?> >Cancelled</option>
+						</select>
+					</span>
+					<span><button type="submit" name="filter_button" >Filter</button></span>
+					</form>
+				</div>
+				<form action="<?php echo admin_url("admin-post.php") ?>" method="post" class="export-reports-form">
+					<input type="hidden" name="action" value="exportreports" />
+					<input type="hidden" name="tab" value="<?php echo (!isset($_GET['tab']) || $_GET['tab'] == '')  ? 'isa-transactions' : $_GET['tab'] ?>" />
+					<input type="hidden" name="status" value="<?php echo isset($_GET['filter_status']) && $_GET['filter_status'] ? $_GET['filter_status'] : '' ?>" />
+					<button type="submit" name="exportbtn">Export to CSV</button>
+				</form><br/>
+				<table border='1' cellpadding="5" width="100%" cellspacing="0" id="table-cash-transactions" class="content-table">
+					<thead>
+						<tr><th>First Name</th><th>Last Name</th><th>Email</th><th>Investor Type</th><th>Product</th><th>Status</th><th>Investment Amount</th><th>White Label Site</th><th>Referred By</th><th>Actions</th></tr>
+					</thead>
+					<tbody>
+						<?php if($investments) { 
+							$transferTypeLabels = array(
+								'isa_transfer' => 'ISA Transfer',
+								'new_isa' => 'New ISA'
+							);
+						?>
+						<?php foreach($investments as $inv) : 
+							$invInfo = getInvestmentInfo($inv->ID);
+							$uMetas = get_user_meta($invInfo['investor_user_id']);
+							$uData = get_userdata($invInfo['investor_user_id']);
+							$invSiteID = get_post_meta($inv->ID,'site_id',true);
+							$blog_details = get_blog_details( $invSiteID );
+							$siteName = $blog_details->blogname;
+							$notes = get_post_meta($inv->ID,'themeum_notes',true);
+						?>
+							<tr class="investment-row" data-invid="<?php echo $inv->ID ?>">
+								<td><?php echo $uMetas['billing_first_name'][0] ?></td>
+								<td><?php echo $uMetas['billing_last_name'][0] ?></td>
+								<td><?php echo $uData->data->user_email ?></td>
+								<td><?php echo $uMetas['investor_type'][0] ?></td>
+								<td><?php echo '<a href="'.get_edit_post_link( $inv->ID ).'">'.get_the_title(esc_html($invInfo['investment_project_id'])).'</a>';  ?></td>
+								<td>
+									<?php 
+										$status = esc_html(get_post_meta( $inv->ID , 'themeum_status_all' , true ));
+										if($status == 'cancelled') {
+											echo "Funding Cancelled";
+										}else if ($status == 'received'){
+											echo "Funding Received";
+										}else if ($status == 'complete') {
+											echo "Investment Complete";
+										}else if ($status == 'pending'){
+											echo "Awaiting Funding";
+										}else{
+											echo "Awaiting Funding";
+										}
+									?>
+								</td>
+								<td>
+									£<?php echo $invInfo['investment_amount']; ?>
+								</td>
+								<td><?php echo $siteName ?></td>
+								<td><?php echo $uMetas['referralcode'][0] ?></td>
+								<td><a href="<?php echo get_edit_post_link($inv->ID); ?>">edit</a></td>
+							</tr>
+							<tr style="display:none;" class="details-row" id="investment-details-<?php echo $inv->ID ?>">
+								<td>
+									<span>DOB: </span><span><?php echo $uMetas['userdob'][0] ?></span> 
+								</td>
+								<td></td>
+								<td></td>
+								<td><span>NI Number: </span><span><?php echo $uMetas['ni_number'][0] ?></span></td>
+								<td>
+									<span>Address: </span>
+									<span>
+										<?php echo $uMetas['billing_address_1'][0] ?>,<?php echo $uMetas['billing_address_2'][0] ?>,
+										<?php echo $uMetas['billing_city'][0] ?>, <?php echo $uMetas['billing_state'][0] ?>,
+										<?php echo $uMetas['billing_country'][0] ?> - <?php echo $uMetas['billing_postcode'][0] ?>
+									</span>
+								</td>
+								<td><span>Contact Number: </span><span><?php echo $uMetas['phone_number'][0] ?></span></td>
+								<td colspan="2"><span>Funding Source: </span><span><?php echo $invInfo['source_of_wealth'] ?></span></td>
+								<td><span>Notes: </span><br/>
+									<ul class="investment-notes" id="notes_wrapper_<?php echo $inv->ID ?>">
+										<?php if(count($notes) > 0): ?>
+											<?php foreach($notes as $n): ?>
+													<li><?php echo $n ?></li>
+											<?php endforeach; ?>
+										<?php endif; ?>
+									</ul>
+									<div class="investment-notes-input"><input type="text" class="" id="notes_<?php echo $inv->ID ?>" placeholder="Add Note.."  /><button type="button" data-investmentid="<?php echo $inv->ID ?>" class="btn investment-notes-submit">Submit</button></div>
+								</td>
+							</tr>
+						<?php endforeach; ?>
+						<?php }else{ ?>
+							<tr>
+								<td colspan="7" align="center">No Cash Investments Found!</td>
+							</tr>
+						<?php } ?>
+					</tbody>
+				</table>
+			</section>
+			<?php }
+			if((isset($_GET['tab']) && $_GET['tab'] == 'users')) {
+				$limit = 50;
+				$result = $wpdb->get_results( 
+					"SELECT SQL_CALC_FOUND_ROWS * FROM ".$wpdb->base_prefix."users WHERE 1 LIMIT $limit;"
+				);
+				$total_count = $wpdb->get_var(
+					"SELECT FOUND_ROWS();"
+				);
+				$totalPages = ceil($total_count/$limit);
+				$cpage = $pn = isset($_GET['cpage']) ? (int)$_GET['cpage'] : 1;
+				$offset = ($cpage-1) * $limit;
+				$k = (($cpage+4>$totalPages)?$totalPages-4:(($cpage-4<1)?5:$cpage));
+				$sq = "SELECT * FROM ".$wpdb->base_prefix."users ";
+				$sq .= "where 1 ";
+				if(isset($_GET['filter_name']) && $_GET['filter_name'] != '') {
+					$sq .= "AND display_name like '%".$_GET['filter_name']."%' ";
+				}
+				if(isset($_GET['filter_username']) && $_GET['filter_username'] != '') {
+					$sq .= "AND user_login like '%".$_GET['filter_username']."%' ";
+				}
+				if(isset($_GET['filter_email']) && $_GET['filter_email'] != '') {
+					$sq .= "AND user_email like '%".$_GET['filter_email']."%' ";
+				}
+				$sq .= "ORDER BY user_registered DESC limit $offset,$limit";
+				$allUsers = $wpdb->get_results($sq);
+			?>
+			<section class="reports_content content-users" id="content-users">
+				<h2>Users</h2>
+				<div class="filter_box">
+					<form>
+						<input type="hidden" name="page" value="products_reports" />
+						<input type="hidden" name="tab" value="<?php echo (!isset($_GET['tab']) || $_GET['tab'] == '')  ? 'isa-transactions' : $_GET['tab'] ?>" />
+						<span><input type="text" name="filter_name" id="filter_name" placeholder="Name" value="<?php echo isset($_GET['filter_name']) ? $_GET['filter_name'] : ''  ?>" /></span>
+						<span><input type="text" name="filter_username" id="filter_username" placeholder="Username" value="<?php echo isset($_GET['filter_username']) ? $_GET['filter_username'] : ''  ?>" /></span>
+						<span><input type="text" name="filter_email" id="filter_email" placeholder="email" value="<?php echo isset($_GET['filter_email']) ? $_GET['filter_email'] : ''  ?>" /></span>
+						<span><button type="submit" name="filter_button" >Filter</button></span>
+					</form>
+				</div>
+				<form action="<?php echo admin_url("admin-post.php") ?>" method="post" class="export-reports-form">
+					<input type="hidden" name="action" value="exportreports" />
+					<input type="hidden" name="tab" value="users" />
+					<input type="hidden" name="filter_name" value="<?php echo isset($_GET['filter_name']) && $_GET['filter_name']!= '' ? $_GET['filter_name'] : '' ?>" />
+					<input type="hidden" name="filter_username" value="<?php echo isset($_GET['filter_username']) && $_GET['filter_username']!= '' ? $_GET['filter_username'] : '' ?>" />
+					<input type="hidden" name="filter_email" value="<?php echo isset($_GET['filter_email']) && $_GET['filter_email']!= '' ? $_GET['filter_email'] : '' ?>" />
+					<button type="submit" name="exportbtn">Export to CSV</button>
+				</form><br/>
+				<?php if(!isset($_GET['filter_button'])) { ?>
+				<div class="user_pagination pagination">
+					<ul>
+					
+						<?php $pagLink = ""; 
+        if($pn>=2){ 
+            echo "<li><a href='https://therightcrowd.com/wp-admin/admin.php?page=products_reports&tab=users&cpage=1'> << </a></li>"; 
+            echo "<li><a href='https://therightcrowd.com/wp-admin/admin.php?page=products_reports&tab=users&cpage=".($pn-1)."'> < </a></li>"; 
+        } 
+        for ($i=-4; $i<=4; $i++) { 
+          if($k+$i==$pn) 
+            $pagLink .= "<li class='active'><a href='https://therightcrowd.com/wp-admin/admin.php?page=products_reports&tab=users&cpage=".($k+$i)."'>".($k+$i)."</a></li>"; 
+          else
+            $pagLink .= "<li><a href='https://therightcrowd.com/wp-admin/admin.php?page=products_reports&tab=users&cpage=".($k+$i)."'>".($k+$i)."</a></li>";   
+        };   
+        echo $pagLink; 
+        if($pn<$totalPages){ 
+            echo "<li><a href='https://therightcrowd.com/wp-admin/admin.php?page=products_reports&tab=users&cpage=".($pn+1)."'> > </a></li>"; 
+            echo "<li><a href='https://therightcrowd.com/wp-admin/admin.php?page=products_reports&tab=users&cpage=".$totalPages."'> >> </a></li>"; 
+        }     ?>
+					</ul>
+				</div>
+				<?php } ?>
+				<table border='1' cellpadding="5" width="100%" cellspacing="0" id="table-users" class="content-table">
+					<thead>
+						<tr><th>Username</th><th>First Name</th><th>Last Name</th><th>Investor Type</th><th>Email</th><th>Date Registered</th><th>Source Site</th><th>Referred By</th><th>Actions</th></tr>
+					</thead>
+					<tbody>
+						<?php foreach($allUsers as $user) : 
+							$uMetas = get_user_meta($user->ID);
+							$uData = get_userdata($user->ID);
+							$uSiteID = $uMetas['primary_blog'][0];
+							$blog_details = get_blog_details( $uSiteID );
+							$siteName = $blog_details->blogname;
+							$notes = get_user_meta($user->ID,'user_notes',true);
+						?>
+						<tr class="user-row" data-uid="<?php echo $user->ID ?>">
+							<td><?php echo $uData->data->user_login ?></td>
+							<td><?php echo $uMetas['billing_first_name'][0] ?></td>
+							<td><?php echo $uMetas['billing_last_name'][0] ?></td>
+							<td><?php echo $uMetas['investor_type'][0] ?></td>
+							<td><?php echo $uData->data->user_email ?></td>
+							<td><?php echo date("d/m/Y",strtotime($uData->data->user_registered)) ?></td>
+							<td><?php echo $siteName ?></td>
+							<td><?php echo $uMetas['referralcode'][0] ?></td>
+							<td><a href="<?php 
+							restore_current_blog();
+							switch_to_blog($uSiteID);
+							echo get_edit_user_link($user->ID); 
+							restore_current_blog();
+							switch_to_blog(1);
+							?>">edit</a></td>
+						</tr>
+						<tr style="display:none;" class="details-row" id="user-details-<?php echo $user->ID ?>">
+							<td colspan="9">
+							<table width="100%">
+								<tr>
+									<td>
+										<span>DOB: </span><span><?php echo $uMetas['userdob'][0] ?></span> 
+									</td>
+									<td><span>NI Number: </span><span><?php echo $uMetas['ni_number'][0] ?></span></td>
+									<td colspan="2">
+										<span>Address: </span>
+										<span>
+											<?php echo $uMetas['billing_address_1'][0] ?>,<?php echo $uMetas['billing_address_2'][0] ?>,
+											<?php echo $uMetas['billing_city'][0] ?>, <?php echo $uMetas['billing_state'][0] ?>,
+											<?php echo $uMetas['billing_country'][0] ?> - <?php echo $uMetas['billing_postcode'][0] ?>
+										</span>
+									</td>
+									<td><span>Contact Number: </span><span><?php echo $uMetas['phone_number'][0] ?></span></td>
+									<td colspan="2"><span>Notes: </span><br/>
+										<ul class="user-notes" id="user_notes_wrapper_<?php echo $user->ID ?>">
+											<?php if(count($notes) > 0): ?>
+												<?php foreach($notes as $n): ?>
+														<li><?php echo $n ?></li>
+												<?php endforeach; ?>
+											<?php endif; ?>
+										</ul>
+										<div class="investment-notes-input"><input type="text" class="" id="user_notes_<?php echo $user->ID ?>" placeholder="Add Note.."  /><button type="button" data-userid="<?php echo $user->ID ?>" class="btn user-notes-submit">Submit</button></div>
+									</td>
+								</tr>
+								<tr>
+									<td colspan="4"><span>Bank Details: </span><br/><span><?php echo nl2br($uMetas['bank_details'][0]) ?></span></td>
+									<td colspan="4"><span>Coupons Paid Interval: </span><br/><span><?php echo $uMetas['user_coupon_interval'][0] ?></span></td>
+								</tr>
+								<tr>
+									<td colspan="8">
+										<?php 
+											$userInvestments = getInvestments('all',array('user_id' => $user->ID));
+											echo "<table class='uinvestments' width='100%'>";
+											echo "<tr>
+													<th>Project Name</th>
+													<th>Amount</th>
+													<th>Status</th>
+													<th>Source</th>
+													<th>Date</th>
+													<th>Site</th>
+											</tr>";
+											if(count($userInvestments) > 0) { 
+												foreach($userInvestments as $uInv):
+												$uInvInfo = getInvestmentInfo($uInv->ID);
+												$invSiteID = get_post_meta($uInv->ID,'site_id',true);
+												$blog_details = get_blog_details( $invSiteID );
+												$siteName = $blog_details->blogname;
+												$source = get_post_meta($uInv->ID,'themeum_source_of_wealth',true);
+											?>
+												<tr>
+													<td><?php echo '<a href="'.get_edit_post_link( $uInv->ID ).'">'.get_the_title(esc_html($uInvInfo['investment_project_id'])).'</a>';  ?></td>
+													<td>£<?php echo $uInvInfo['investment_amount']; ?></td>
+													<td>
+														<?php 
+															$status = esc_html(get_post_meta( $uInv->ID , 'themeum_status_all' , true ));
+															if($status == 'cancelled') {
+																echo "Funding Cancelled";
+															}else if ($status == 'received'){
+																echo "Funding Received";
+															}else if ($status == 'complete') {
+																echo "Investment Complete";
+															}else if ($status == 'pending'){
+																echo "Awaiting Funding";
+															}else{
+																echo "Awaiting Funding";
+															}
+														?>
+													</td>
+													<td>
+														<?php echo $source; ?>
+													</td>
+													<td>
+														<?php echo date('d/m/Y',strtotime($uInvInfo['investment_date'])); ?>
+													</td>
+													<td><?php echo $siteName ?></td>
+												</tr>
+											<?php 
+												endforeach;
+											}else{
+												echo "<tr><td colspan='4'>No investments found.</td></tr>";
+											}
+											echo "</table>";
+										?>
+									</td>
+								</tr>
+							</table>
+							</td>
+						</tr>
+						<?php endforeach; ?>
+					</tbody>
+				</table>
+			</section>
+			<?php } ?>
+		</div>
+		<style>
+			
+			.reports_content table.content-table > tbody > tr {
+				cursor: pointer;
+			}
+			.reports_content table.content-table > tbody > tr:hover {
+				background-color: #ccc;
+				color: #fff;
+			}
+			.reports_content table.content-table > tbody tr.details-row {
+				cursor: text !important;
+				border: none;
+				height: 100px;
+			}
+			.reports_content table.content-table > tbody tr.details-row td {
+				border: none;
+				word-wrap: break-word; 
+				vertical-align: top;
+			}
+			.reports_content table.content-table > tbody tr.details-row td span {
+				font-weight: bold;
+			}
+			.reports_content table.content-table > tbody tr.details-row td span + span {
+				font-weight: normal;
+			}
+			.reports_content table.content-table > tbody tr.details-row:hover {
+				background: none;
+				color: #000;
+			}
+			.reports_content table.content-table > tbody tr.details-row td .investment-notes {
+				height: 75px;
+				overflow-y: auto;
+			}
+			.reports-tabs {
+				margin-top: 30px;
+			}
+			.reports-tabs li {
+				display: inline-block;
+			}
+			.reports-tabs ul li a {
+				background: #C7CED6; 
+				padding: 10px;
+				color: #fff;
+				text-decoration: none;
+				font-size: 12px;
+			}
+			.reports-tabs ul li.active a {
+				background: #01D5EB;
+			}
+			.filter_box {
+				margin-bottom: 20px;
+			}
+			.filter_box select {
+				vertical-align: top;
+			}
+			.filter_box button {
+				height: 26px;
+    vertical-align: top;
+    margin-top: 1px;
+			}
+			#table-isa-transactions_filter, #table-cash-transactions_filter {
+				display: none !important;
+			}
+			.user_pagination ul li {
+				display: inline-block;
+				margin-right: 8px;
+			}
+			.user_pagination ul li a {
+				padding: 5px;
+				border: 1px solid #ccc;
+				color: #000;
+				text-decoration: none;
+			}
+			.user_pagination ul li.active a {
+				background: #01D5EB;
+				color: #fff;
+				border: 1px solid #01D5EB;
+			}
+		</style>
+		<script src="https://cdn.datatables.net/1.10.20/js/jquery.dataTables.min.js"></script>
+		<script>
+			jQuery(function(){
+				jQuery(".investment-row").click(function(){
+					var invID = jQuery(this).data('invid');
+					jQuery(this).toggleClass('active-row');
+					jQuery("#investment-details-"+invID).toggle();
+				});
+				jQuery(".user-row").click(function(){
+					var uID = jQuery(this).data('uid');					
+					jQuery(this).toggleClass('active-row');
+					jQuery("#user-details-"+uID).toggle();
+				});
+				jQuery(".investment-notes-submit").click(function(){
+					var invID = jQuery(this).data('investmentid');
+					var n = jQuery("#notes_"+invID).val();
+					jQuery.post({
+					  url: "<?php echo admin_url('admin-ajax.php'); ?>",
+					  data: {
+						action: "add_investment_note",
+						invest_id: invID,
+						note: n
+					  },
+					  success: function(response){
+						console.log(response);
+						var res = JSON.parse(response);
+						if(res.status === "true") {
+							jQuery("#notes_wrapper_"+invID).append(res.html);
+							jQuery("#notes_"+invID).val('');
+						}
+					  }
+					});	
+				});
+				
+				jQuery(".user-notes-submit").click(function(){
+					var userID = jQuery(this).data('userid');
+					var n = jQuery("#user_notes_"+userID).val();
+					jQuery.post({
+					  url: "<?php echo admin_url('admin-ajax.php'); ?>",
+					  data: {
+						action: "add_user_note",
+						user_id: userID,
+						note: n
+					  },
+					  success: function(response){
+						console.log(response);
+						var res = JSON.parse(response);
+						if(res.status === "true") {
+							jQuery("#user_notes_wrapper_"+userID).append(res.html);
+							jQuery("#user_notes_"+userID).val('');
+						}
+					  }
+					});	
+				});
+				
+				//datatable search 
+				<?php if(!isset($_GET['tab']) || $_GET['tab'] == 'isa-transactions' || $_GET['tab'] == '') { ?>
+				var isaTable = jQuery("#table-isa-transactions").DataTable({
+					"paging":   false,
+					"ordering": false,
+					"info":     false,
+					
+				});
+				function createFilter(table, columns, elementID) {
+				  var input = jQuery(elementID).on("keyup", function() {
+					table.draw();
+				  });
+
+				  jQuery.fn.dataTable.ext.search.push(function(
+					settings,
+					searchData,
+					index,
+					rowData,
+					counter
+				  ) {
+					var val = input.val().toLowerCase();
+
+					for (var i = 0, ien = columns.length; i < ien; i++) {
+					  if (searchData[columns[i]].toLowerCase().indexOf(val) !== -1) {
+						return true;
+					  }
+					}
+
+					return false;
+				  });
+
+				  return input;
+				}
+				/*jQuery("#filter_product").on( 'keyup', function () {
+					isaTable.columns(4).search( jQuery(this).val() ).draw();
+				});*/
+				
+				var filter1 = createFilter(isaTable, [0, 1, 2],'#filter_name_email');
+				//var filter2 = createFilter(isaTable, [4],'#filter_product');
+				<?php } ?>
+				<?php if(isset($_GET['tab']) && $_GET['tab'] == 'cash-transactions') { ?>
+				var isaTable = jQuery("#table-cash-transactions").DataTable({
+					"paging":   false,
+					"ordering": false,
+					"info":     false,
+					
+				});
+				function createFilter(table, columns, elementID) {
+				  var input = jQuery(elementID).on("keyup", function() {
+					table.draw();
+				  });
+
+				  jQuery.fn.dataTable.ext.search.push(function(
+					settings,
+					searchData,
+					index,
+					rowData,
+					counter
+				  ) {
+					var val = input.val().toLowerCase();
+
+					for (var i = 0, ien = columns.length; i < ien; i++) {
+					  if (searchData[columns[i]].toLowerCase().indexOf(val) !== -1) {
+						return true;
+					  }
+					}
+
+					return false;
+				  });
+
+				  return input;
+				}
+				/*jQuery("#filter_product").on( 'keyup', function () {
+					isaTable.columns(4).search( jQuery(this).val() ).draw();
+				});*/
+				
+				var filter1 = createFilter(isaTable, [0, 1, 2],'#filter_name_email');
+				var filter2 = createFilter(isaTable, [4],'#filter_product');
+				<?php } ?>
+			});
+		</script>
+	<?php }
+	
+add_action( 'wp_ajax_nopriv_add_investment_note', 'add_investment_note' );
+add_action( 'wp_ajax_add_investment_note', 'add_investment_note' );
+function add_investment_note() {
+	$ret = array('status'=>'false','html' => '');
+	if((int) $_POST['invest_id'] > 0) {
+		$oldNotes = get_post_meta($_POST['invest_id'],'themeum_notes',true);
+		if($oldNotes != '') {
+			array_push($oldNotes,esc_attr($_POST['note']));
+		}else{
+			$oldNotes = array(esc_attr($_POST['note']));
+		}
+		update_post_meta($_POST['invest_id'],'themeum_notes',$oldNotes);
+		$ret['status'] = 'true';
+		$ret['html'] = '<li>'.esc_attr($_POST['note']).'</li>';
+		echo json_encode($ret);die();	
+	}
+	echo json_encode($ret);die();	
+}	
+
+add_action( 'wp_ajax_nopriv_add_user_note', 'add_user_note' );
+add_action( 'wp_ajax_add_user_note', 'add_user_note' );
+function add_user_note() {
+	$ret = array('status'=>'false','html' => '');
+	if((int) $_POST['user_id'] > 0) {
+		$oldNotes = get_user_meta($_POST['user_id'],'user_notes',true);
+		if($oldNotes != '') {
+			array_push($oldNotes,esc_attr($_POST['note']));
+		}else{
+			$oldNotes = array(esc_attr($_POST['note']));
+		}
+		update_user_meta($_POST['user_id'],'user_notes',$oldNotes);
+		$ret['status'] = 'true';
+		$ret['html'] = '<li>'.esc_attr($_POST['note']).'</li>';
+		echo json_encode($ret);die();	
+	}
+	echo json_encode($ret);die();	
+}	
+
+function array2csv($fields, array &$array)
+{
+   if (count($array) == 0) {
+     return null;
+   }
+   ob_start();
+   $df = fopen("php://output", 'w');
+   fputcsv($df, $fields);
+   foreach ($array as $row) {
+      fputcsv($df, $row);
+   }
+   fclose($df);
+   return ob_get_clean();
+}
+
+function download_send_headers($filename) {
+    // disable caching
+    $now = gmdate("D, d M Y H:i:s");
+    header("Expires: Tue, 03 Jul 2001 06:00:00 GMT");
+    header("Cache-Control: max-age=0, no-cache, must-revalidate, proxy-revalidate");
+    header("Last-Modified: {$now} GMT");
+
+    // force download  
+    header("Content-Type: application/force-download");
+    header("Content-Type: application/octet-stream");
+    header("Content-Type: application/download");
+
+    // disposition / encoding on response body
+    header("Content-Disposition: attachment;filename={$filename}");
+    header("Content-Transfer-Encoding: binary");
+}
+function myaExportCSV($data) {	
+	$fields = array('Username', 'Name', 'Address', 'Phone', 'Mobile', 'Email', 'Bank Details', 'Referred By', 'Type of Investor', 'Date of Birth', 'Date Registered', 'Last Login', 'NI Number', 'Total Investments (£)');
+	download_send_headers("users.csv");
+	echo array2csv($fields,$data);
+	die();
+}
+function trcExportTransactionsCSV($data) {	
+	$fields = array('First Name', 'Last Name', 'Email', 'Investor Type', 'Product', 'Investment Date', 'Funding Source', 'Investment Type', 'Status', 'Investment Amount', 'White Label Site', 'Referred By', 'Name of ISA Provider', 'Address of ISA Provider', 'Account/Reference Number of ISA Provider', 'Another Account/Reference Number of ISA Provider', 'Full/Part Transfer');
+	download_send_headers("reports.csv");
+	echo array2csv($fields,$data);
+	die();
+}
+function trcExportUsersCSV($data) {	
+	$fields = array('Username', 'First Name', 'Last Name', 'Type of Investor', 'Email', 'Bank Details', 'Date Registered', 'Source Site', 'Referred By', 'Phone Number');
+	download_send_headers("reports.csv");
+	echo array2csv($fields,$data);
+	die();
+}
+
+add_action( 'admin_post_nopriv_trc_export_users', 'trc_export_users' );
+add_action( 'admin_post_trc_export_users', 'trc_export_users' );
+
+function trc_export_users() {
+	if(isManager() && !in_array('read_only_manager',wp_get_current_user()->roles)) {
+		$userArgs = array( 
+		//'blog_id' => get_current_blog_id(),
+		'role__not_in' => array('administrator'),
+		'number'=>-1,
+		'orderby'      => 'registered',
+		'order'        => 'DESC',
+	);
+
+	$users = get_users($userArgs);
+	$data = [];
+	if(count($users) > 0) {
+		foreach($users as $user): 
+			$umetas = get_user_meta($user->ID);
+			if($umetas['billing_address_1'][0] != '') {
+				$add = $umetas['billing_address_1'][0].', '.$umetas['billing_address_2'][0].', '.$umetas['billing_city'][0].', '.$umetas['billing_state'][0].', '.$umetas['billing_country'][0].', '.$umetas['billing_postcode'][0];
+			}else{
+				$add = '-';
+			}
+			if($umetas['wc_last_active'][0] != '') {
+				$lastActive = date('d/m/y H:i',$umetas['wc_last_active'][0]);
+			}else{
+				$lastActive = 'Never';
+			}
+			$totalInvestments = getUserInvestments($user->ID,true);
+			$totInvestments = $totalInvestments;
+			
+			$data[] = array(
+				$user->data->user_login,$user->data->display_name,$add,$umetas['phone_number'][0],$umetas['phone_number'][0],$user->data->user_email,
+				$umetas['referralcode'][0],$umetas['investor_type'][0],$umetas['userdob'][0],date('d/m/y H:i',strtotime($user->data->user_registered)),
+				$lastActive,($umetas['ni_number'][0] != '' ? $umetas['ni_number'][0] : '-'),$totInvestments
+			);
+		endforeach;
+	}						
+	myaExportCSV($data);
+	}	
+	
+}
+
+add_action( 'admin_post_nopriv_exportreports', 'exportreports' );
+add_action( 'admin_post_exportreports', 'exportreports' );
+
+function exportreports() {
+	global $wpdb;
+	$cSite = get_current_blog_id();
+	if($cSite != 1) {
+		return;
+	}
+	$params = array();
+	if(isset($_POST['status']) && $_POST['status'] != '') {
+		$params['status'] = $_POST['status'];
+	}
+	if(isset($_POST['product']) && $_POST['product'] != '') {
+		$params['product'] = $_POST['product'];
+	}
+	if(isset($_POST['funding_source']) && $_POST['funding_source'] != '') {
+		$params['funding_source'] = $_POST['funding_source'];
+	}
+	if(isset($_POST['investment_type']) && $_POST['investment_type'] != '') {
+		$params['investment_type'] = $_POST['investment_type'];
+	}
+	if(isset($_POST['filter_site']) && $_POST['filter_site'] != '') {
+		$params['filter_site'] = $_POST['filter_site'];
+	}
+	
+	if($_POST['tab'] == 'all') {
+		$investments = getInvestments('all',$params);
+	}else if(!isset($_POST['tab']) || $_POST['tab'] == 'isa-transactions' || $_POST['tab'] == '') {
+		$investments = getInvestments('isa',$params);
+	}else if(isset($_POST['tab']) && $_POST['tab'] == 'cash-transactions') {
+		$investments = getInvestments('cash', $params);
+	}else if(isset($_POST['tab']) && $_POST['tab'] == 'cancelled-transactions') {
+		$investments = getInvestments('cancelled', $params);
+	}
+	$data = [];
+	if($investments) { 
+		$transferTypeLabels = array(
+			'isa_transfer' => 'ISA Transfer',
+			'new_isa' => 'New ISA',
+			'cash' => 'Cash',
+			'stocks' => 'Stocks and Shares',
+			'ifisa' => 'IFISA'
+		);
+		foreach($investments as $inv) : 
+			$invInfo = getInvestmentInfo($inv->ID);
+			$uMetas = get_user_meta($invInfo['investor_user_id']);
+			$uData = get_userdata($invInfo['investor_user_id']);
+			$invSiteID = get_post_meta($inv->ID,'site_id',true);
+			$blog_details = get_blog_details( $invSiteID );
+			$siteName = $blog_details->blogname;
+			$notes = get_post_meta($inv->ID,'themeum_notes',true);
+
+			$status = esc_html(get_post_meta( $inv->ID , 'themeum_status_all' , true ));
+			if($status == 'cancelled') {
+				$st = "Funding Cancelled";
+			}else if ($status == 'received'){
+				$st = "Funding Received";
+			}else if ($status == 'complete') {
+				$st = "Investment Complete";
+			}else if ($status == 'pending'){
+				$st = "Awaiting Funding";
+			}else{
+				$st = "Awaiting Funding";
+			}	
+			
+			$nameIsaProvider = $addressIsaProvider = $accountIsaProvider = $fullpartIsaProvider = '-';
+			if($invInfo['source_of_wealth'] == 'isa') {
+				$nameIsaProvider = $invInfo['name_isa_provider'];
+				$addressIsaProvider = $invInfo['address1_isa_provider'].", ".$invInfo['address1_isa_provider'].", ".$invInfo['city_isa_provider'].", ".$invInfo['state_isa_provider'].", ".$invInfo['zip_isa_provider'];
+				$accountIsaProvider = $invInfo['account_isa_provider'];
+				$fullpartIsaProvider = $invInfo['full_part_isa_transfer'];
+				if($invInfo['another_account'] == 'yes') {
+					$anotherAccountIsaProvider = $invInfo['another_account_isa_provider'];
+				}else{
+					$anotherAccountIsaProvider = ' - ';
+				}
+			}
+			$data[] = array(
+				$uMetas['billing_first_name'][0],
+				$uMetas['billing_last_name'][0],
+				$uData->data->user_email,
+				$uMetas['investor_type'][0],
+				get_the_title(esc_html($invInfo['investment_project_id'])),
+				date("d/m/Y",strtotime($invInfo['investment_date'])),
+				$invInfo['source_of_wealth'],
+				$invInfo['investing_into'],
+				$st,
+				$invInfo['investment_amount'],
+				$siteName,
+				$uMetas['referralcode'][0],
+				$nameIsaProvider,
+				$addressIsaProvider,
+				$accountIsaProvider,
+				$anotherAccountIsaProvider,
+				$fullpartIsaProvider
+			);
+		endforeach;
+		trcExportTransactionsCSV($data);
+	}	
+		
+	if($_POST['tab'] == 'users') {
+		$sq = "SELECT * FROM ".$wpdb->base_prefix."users ";
+		$sq .= "where 1 ";
+		if(isset($_POST['filter_name']) && $_POST['filter_name'] != '') {
+			$sq .= "AND display_name like '%".$_POST['filter_name']."%' ";
+		}
+		if(isset($_POST['filter_username']) && $_POST['filter_username'] != '') {
+			$sq .= "AND user_login like '%".$_POST['filter_username']."%' ";
+		}
+		if(isset($_POST['filter_email']) && $_POST['filter_email'] != '') {
+			$sq .= "AND user_email like '%".$_POST['filter_email']."%' ";
+		}
+		$sq .= "ORDER BY user_registered DESC";
+		$allUsers = $wpdb->get_results($sq);
+		if(count($allUsers) > 0) {
+			foreach($allUsers as $user): 
+				$uData = get_userdata($user->ID);
+				$uMetas = get_user_meta($user->ID);
+				$uSiteID = $uMetas['primary_blog'][0];
+				$blog_details = get_blog_details( $uSiteID );
+				$siteName = $blog_details->blogname;
+				
+				$data[] = array(
+					$uData->data->user_login,$uMetas['billing_first_name'][0],$uMetas['billing_last_name'][0],$uMetas['investor_type'][0],$uData->data->user_email,
+					$uMetas['bank_details'][0],
+					date('d/m/y H:i',strtotime($uData->data->user_registered)),$siteName,$uMetas['referralcode'][0],($uMetas['phone_number'][0] != '' ? $uMetas['phone_number'][0] : '-' )
+				);
+			endforeach;
+		}
+		trcExportUsersCSV($data);
+	}		
+	
+}
+
+if(isset($_GET['page_type']) && $_GET['page_type'] == 'reports') {
+	add_action('wp_footer','add_reports_page_js_css');
+	function add_reports_page_js_css() {
+		?>
+		<style>
+.front-reports-page .filter_box select {
+		display: inline;
+		width: auto;
+}
+.front-reports-page table.content-table > tbody > tr {
+	cursor: pointer;
+}
+.front-reports-page table.content-table > thead > tr th, .front-reports-page table.content-table > tbody > tr td {
+	padding: 8px;
+}
+.front-reports-page table.content-table > tbody > tr:hover {
+	background-color: #ccc;
+	color: #fff;
+}
+.front-reports-page table.content-table > tbody tr.details-row {
+	cursor: text !important;
+	border: none;
+	height: 100px;
+}
+.front-reports-page table.content-table > tbody tr.details-row td {
+	border: none;
+	word-wrap: break-word; 
+	vertical-align: top;
+}
+.front-reports-page table.content-table > tbody tr.details-row td span {
+	font-weight: bold;
+}
+.front-reports-page table.content-table > tbody tr.details-row td span + span {
+	font-weight: normal;
+}
+.front-reports-page table.content-table > tbody tr.details-row:hover {
+	background: none;
+	color: #000;
+}
+.front-reports-page table.content-table > tbody tr.details-row td .investment-notes {
+	height: 75px;
+	overflow-y: auto;
+}
+.reports-tabs {
+	margin-top: 30px;
+}
+.reports-tabs li {
+	display: inline-block;
+}
+.reports-tabs ul li a {
+	background: #C7CED6; 
+	padding: 10px;
+	color: #fff;
+	text-decoration: none;
+	font-size: 12px;
+}
+.reports-tabs ul li.active a {
+	background: #01D5EB;
+}
+.filter_box {
+	margin-bottom: 20px;
+}
+.filter_box select {
+	vertical-align: top;
+}
+.filter_box button {
+	height: 26px;
+vertical-align: top;
+margin-top: 1px;
+}
+#table-isa-transactions_filter, #table-cash-transactions_filter {
+	display: none !important;
+}
+.user_pagination ul li {
+	display: inline-block;
+	margin-right: 8px;
+}
+.user_pagination ul li a {
+	padding: 5px;
+	border: 1px solid #ccc;
+	color: #000;
+	text-decoration: none;
+}
+.user_pagination ul li.active a {
+	background: #01D5EB;
+	color: #fff;
+	border: 1px solid #01D5EB;
+}
+</style>
+
+<script src="https://cdn.datatables.net/1.10.20/js/jquery.dataTables.min.js"></script>
+		<script>
+		jQuery(function(){
+			jQuery("#sbmt-export-users").click(function(){
+				jQuery("#trc_export_users_form").submit();
+			});
+			
+		});
+			jQuery(function(){
+				jQuery(".investment-row").click(function(){
+					var invID = jQuery(this).data('invid');
+					jQuery(this).toggleClass('active-row');
+					jQuery("#investment-details-"+invID).toggle();
+				});
+				jQuery(".user-row").click(function(){
+					var uID = jQuery(this).data('uid');					
+					jQuery(this).toggleClass('active-row');
+					jQuery("#user-details-"+uID).toggle();
+				});
+				jQuery(".investment-notes-submit").click(function(){
+					var invID = jQuery(this).data('investmentid');
+					var n = jQuery("#notes_"+invID).val();
+					jQuery.post({
+					  url: "<?php echo admin_url('admin-ajax.php'); ?>",
+					  data: {
+						action: "add_investment_note",
+						invest_id: invID,
+						note: n
+					  },
+					  success: function(response){
+						console.log(response);
+						var res = JSON.parse(response);
+						if(res.status === "true") {
+							jQuery("#notes_wrapper_"+invID).append(res.html);
+							jQuery("#notes_"+invID).val('');
+						}
+					  }
+					});	
+				});
+				
+				jQuery(".user-notes-submit").click(function(){
+					var userID = jQuery(this).data('userid');
+					var n = jQuery("#user_notes_"+userID).val();
+					jQuery.post({
+					  url: "<?php echo admin_url('admin-ajax.php'); ?>",
+					  data: {
+						action: "add_user_note",
+						user_id: userID,
+						note: n
+					  },
+					  success: function(response){
+						console.log(response);
+						var res = JSON.parse(response);
+						if(res.status === "true") {
+							jQuery("#user_notes_wrapper_"+userID).append(res.html);
+							jQuery("#user_notes_"+userID).val('');
+						}
+					  }
+					});	
+				});
+				
+				//datatable search 
+				<?php if(!isset($_GET['tab'])) { ?>
+				var isaTable = jQuery("#table-isa-transactions").DataTable({
+					"paging":   false,
+					"ordering": false,
+					"info":     false,
+					
+				});
+				function createFilter(table, columns, elementID) {
+				  var input = jQuery(elementID).on("keyup", function() {
+					table.draw();
+				  });
+
+				  jQuery.fn.dataTable.ext.search.push(function(
+					settings,
+					searchData,
+					index,
+					rowData,
+					counter
+				  ) {
+					var val = input.val().toLowerCase();
+
+					for (var i = 0, ien = columns.length; i < ien; i++) {
+					  if (searchData[columns[i]].toLowerCase().indexOf(val) !== -1) {
+						return true;
+					  }
+					}
+
+					return false;
+				  });
+
+				  return input;
+				}
+				/*jQuery("#filter_product").on( 'keyup', function () {
+					isaTable.columns(4).search( jQuery(this).val() ).draw();
+				});*/
+				
+				var filter1 = createFilter(isaTable, [0, 1, 2],'#filter_name_email');
+				//var filter2 = createFilter(isaTable, [4],'#filter_product');
+				<?php } ?>
+			});
+		</script>
+		<?php 
+	}
+}
+
+if(is_admin()) {
+	add_filter('woocommerce_customer_meta_fields','remove_billing_address_admin',999999);
+	function remove_billing_address_admin($fields) {
+		unset($fields['billing']);
+		unset($fields['shipping']);
+		return $fields;
+	}
+}
